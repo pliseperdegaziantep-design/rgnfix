@@ -1,579 +1,613 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useLocation } from "wouter";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Camera,
+  Check,
+  CheckCircle2,
+  ClipboardList,
+  Download,
+  FileText,
+  MessageCircle,
+  NotebookPen,
+  Phone,
+  RefreshCcw,
+  Ruler,
+  ShieldCheck,
+  Smartphone,
+  Volume2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Ruler, ArrowRight, ArrowLeft, CheckCircle2, AlertCircle, Video, Volume2 } from "lucide-react";
-import { MOUNT_TYPES, WINDOW_TYPES, CASE_TYPES, MEASUREMENT_INSTRUCTIONS } from "@shared/types";
-import { Link } from "wouter";
-import VideoMeasureHelper from "@/components/VideoMeasureHelper";
-import VoiceMeasureGuide from "@/components/VoiceMeasureGuide";
+import { CASE_TYPES } from "@shared/types";
+import LiveMeasurementCamera from "@/features/live-measurement/LiveMeasurementCamera";
+import {
+  APPLICATION_AREAS,
+  CAM_BALCONY_CONFIRMATIONS,
+  MOUNTING_LABELS,
+  MOUNTING_OPTIONS,
+  PVC_ALUMINUM_CONFIRMATIONS,
+  buildMeasurementText,
+  calculatePanel,
+  createTransferPayload,
+  formatCm,
+  hasDuplicateMeasurement,
+  validateMountingType,
+  type ApplicationArea,
+  type CalculatedMeasurement,
+  type CameraGuideMode,
+  type MeasurementPanelDraft,
+  type MountingType,
+} from "@/features/live-measurement/rules";
 
-interface MeasurementState {
-  windowType: string;
-  mountType: string;
-  caseType: string;
-  width: string;
-  height: string;
-  windowCount: string;
-  panels: { width: string; height: string; isOpenable: boolean }[];
-}
+const WHATSAPP_NUMBER = "905300288903";
+const TRANSFER_KEY = "rgnfix:measurement-transfer";
 
 const steps = [
-  { id: 1, title: "Cam Tipi", desc: "Cam tipinizi seçin" },
-  { id: 2, title: "Ölçüler", desc: "Genişlik ve yükseklik girin" },
-  { id: 3, title: "Montaj & Kasa", desc: "Montaj ve kasa tipini seçin" },
-  { id: 4, title: "Sonuç", desc: "Ölçüleriniz hazır" },
-];
-
-const measurementWindowTypes = [
-  { id: "cam-balkon", name: "Cam Balkon", description: "Katlanır cam balkon sistemi" },
-  { id: "standart", name: "Standart Pencere/Kapı", description: "PVC doğrama pencere ve kapı sistemi" },
-  { id: "aluminyum", name: "Alüminyum Pencere/Kapı", description: "Alüminyum doğrama pencere ve kapı sistemi" },
-  { id: "surgulu-kapi", name: "Sürgülü Pencere/Kapı", description: "Sürgülü cam pencere ve kapı sistemi" },
+  { id: 1, title: "Hazırlık" },
+  { id: 2, title: "Uygulama" },
+  { id: 3, title: "Ölçüm" },
+  { id: 4, title: "Onay" },
 ] as const;
 
-const defaultWindowVisual = {
-  image: "/measurement/prepare.png",
-  alt: "Cam sistemini ölçüye hazırlama",
-  title: "Önce ölçüm alanını hazırlayın",
-  description: "Cam çıtalarını temizleyin, kolları kapatın ve doğru cam tipini seçin.",
-};
+type PreparationMethod = "paper" | "notes" | "second-device" | "screen";
 
-const windowTypeVisuals: Record<string, typeof defaultWindowVisual> = {
-  "cam-balkon": {
-    image: "/measurement/cam-balkon-v2.png",
-    alt: "Kanatları ve içe açılan paneli görünen katlanır cam balkon sistemi",
-    title: "Cam balkon kanatlarını kontrol edin",
-    description: "Tüm cam kanatları soldan sağa numaralandırın; içe açılan ilk kanadı ayrıca işaretleyin.",
-  },
-  standart: {
-    image: "/measurement/standart-pencere-kapi-v2.png",
-    alt: "Standart PVC çift kanatlı pencere ve tam boy balkon kapısı",
-    title: "Standart pencere ve kapı ölçüsüne hazırlanın",
-    description: "Pencere ve kapı kollarını kapatın; her camın genişlik ve yüksekliğini iç çıtalar arasından ayrı ölçün.",
-  },
-  aluminyum: {
-    image: "/measurement/aluminyum-pencere-kapi.png",
-    alt: "Alüminyum pencere ve kapı sistemi",
-    title: "Alüminyum doğrama ölçüsüne hazırlanın",
-    description: "Pencere veya kapıyı kapatın; genişlik ile yüksekliği iç cam çıtaları arasından ölçün.",
-  },
-  "surgulu-kapi": {
-    image: "/measurement/surgulu-pencere-kapi-v2.png",
-    alt: "Yükseltilmiş sürgülü pencere ve tam boy sürgülü balkon kapısı",
-    title: "Sürgülü pencere ve kapı ölçüsüne hazırlanın",
-    description: "Pencere ve kapı kanatlarını kapatın; her camın genişlik ve yüksekliğini ayrı ayrı ölçün.",
-  },
-};
+const preparationOptions: Array<{
+  id: PreparationMethod;
+  title: string;
+  description: string;
+  icon: typeof FileText;
+}> = [
+  { id: "paper", title: "Kalem ve kâğıda yazacağım", description: "Her camı sırayla not edin.", icon: NotebookPen },
+  { id: "notes", title: "Telefonumun notlarına yazacağım", description: "Notlar uygulamasını kullanın.", icon: Smartphone },
+  { id: "second-device", title: "Başka bir telefondan RGNFIX’i açacağım", description: "Bir cihaz kamera, diğeri ölçü girişi için kullanılabilir.", icon: Phone },
+  { id: "screen", title: "Ölçüleri bu ekrana yazacağım", description: "Her kanadı doğrudan RGNFIX’e kaydedin.", icon: ClipboardList },
+];
+
+function createPanel(index: number): MeasurementPanelDraft {
+  return {
+    id: `${Date.now()}-${index}-${Math.random().toString(36).slice(2, 8)}`,
+    measuredWidth: "",
+    measuredHeight: "",
+    heightCheck: "",
+    duplicateConfirmed: false,
+    completed: false,
+  };
+}
+
+function dataUrlToFile(dataUrl: string, filename: string) {
+  const [metadata, encoded] = dataUrl.split(",");
+  const mime = metadata.match(/data:(.*?);base64/)?.[1] || "image/jpeg";
+  const binary = atob(encoded || "");
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+  return new File([bytes], filename, { type: mime });
+}
 
 export default function MeasurementAssistant() {
+  const [, navigate] = useLocation();
+  const [started, setStarted] = useState(false);
   const [step, setStep] = useState(1);
-  const [showVideo, setShowVideo] = useState(false);
+  const [preparationMethod, setPreparationMethod] = useState<PreparationMethod | "">("");
+  const [applicationArea, setApplicationArea] = useState<ApplicationArea | "">("");
+  const [mountType, setMountType] = useState<MountingType | "">("");
+  const [caseType, setCaseType] = useState("kalin");
+  const [pieceCount, setPieceCount] = useState(1);
+  const [firstOpeningConfirmed, setFirstOpeningConfirmed] = useState(false);
+  const [panels, setPanels] = useState<MeasurementPanelDraft[]>([createPanel(0)]);
+  const [currentPanelIndex, setCurrentPanelIndex] = useState(0);
+  const [cameraMode, setCameraMode] = useState<CameraGuideMode>("frame");
   const [capturedPhotos, setCapturedPhotos] = useState<string[]>([]);
-  const [data, setData] = useState<MeasurementState>({
-    windowType: "",
-    mountType: "",
-    caseType: "kalin",
-    width: "",
-    height: "",
-    windowCount: "1",
-    panels: [{ width: "", height: "", isOpenable: false }],
-  });
+  const [error, setError] = useState("");
+  const [confirmations, setConfirmations] = useState<Record<number, boolean>>({});
 
-  const canProceed = () => {
-    switch (step) {
-      case 1: return !!data.windowType;
-      case 2:
-        if (data.windowType === "cam-balkon") {
-          return data.panels.some((p) => parseFloat(p.width) > 0 && parseFloat(p.height) > 0);
-        }
-        return !!data.width && !!data.height && parseFloat(data.width) > 0 && parseFloat(data.height) > 0;
-      case 3: return !!data.mountType && !!data.caseType;
-      default: return true;
+  const selectedArea = APPLICATION_AREAS.find(option => option.id === applicationArea);
+  const availableMounts = applicationArea ? MOUNTING_OPTIONS[applicationArea] : [];
+  const currentPanel = panels[currentPanelIndex];
+  const completedCount = panels.filter(panel => panel.completed).length;
+  const confirmationItems = applicationArea === "cam_balkon"
+    ? CAM_BALCONY_CONFIRMATIONS
+    : PVC_ALUMINUM_CONFIRMATIONS;
+  const allConfirmationsChecked = confirmationItems.every((_, index) => confirmations[index]);
+
+  const calculatedMeasurements = useMemo(() => {
+    if (!applicationArea || panels.some(panel => !panel.completed)) return [];
+    try {
+      return panels.map((panel, index) => calculatePanel(applicationArea, panel, index));
+    } catch {
+      return [];
+    }
+  }, [applicationArea, panels]);
+
+  const currentLabel = applicationArea === "cam_balkon"
+    ? `${currentPanelIndex + 1}. Kanat${currentPanelIndex === 0 ? " – İlk açılan kanat" : ""}`
+    : `${currentPanelIndex + 1}. Parça`;
+
+  const cameraInstruction = cameraMode === "width"
+    ? "Çelik metreyi camın sol iç kenarından sağ iç kenarına düz tutun. Değeri metreden okuyun."
+    : cameraMode === "height"
+      ? "Çelik metreyi üst iç kenardan alt iç kenara dik tutun. Boyu metreden okuyun."
+      : "Camın ölçü alınacak bölümünü görünür hâle getirin. Kamera ölçü hesaplamaz.";
+
+  const syncPieceCount = (nextCount: number) => {
+    const safeCount = Math.min(30, Math.max(1, Math.trunc(nextCount || 1)));
+    setPieceCount(safeCount);
+    setPanels(current => Array.from({ length: safeCount }, (_, index) => current[index] ?? createPanel(index)));
+    setCurrentPanelIndex(index => Math.min(index, safeCount - 1));
+    setConfirmations({});
+  };
+
+  const selectApplicationArea = (value: ApplicationArea) => {
+    setApplicationArea(value);
+    setMountType("");
+    setFirstOpeningConfirmed(false);
+    setPieceCount(1);
+    setPanels([createPanel(0)]);
+    setCurrentPanelIndex(0);
+    setConfirmations({});
+    setError("");
+  };
+
+  const updateCurrentPanel = (field: "measuredWidth" | "measuredHeight" | "heightCheck", value: string) => {
+    setPanels(current => current.map((panel, index) => index === currentPanelIndex
+      ? { ...panel, [field]: value, completed: false, duplicateConfirmed: false }
+      : panel));
+    setError("");
+  };
+
+  const confirmDuplicate = (confirmed: boolean) => {
+    if (confirmed) {
+      setPanels(current => current.map((panel, index) => index === currentPanelIndex
+        ? { ...panel, duplicateConfirmed: true }
+        : panel));
+    } else {
+      setPanels(current => current.map((panel, index) => index === currentPanelIndex
+        ? { ...panel, measuredWidth: "", measuredHeight: "", heightCheck: "", duplicateConfirmed: false, completed: false }
+        : panel));
+      setCameraMode("width");
     }
   };
 
-  const selectedWindow = measurementWindowTypes.find((w) => w.id === data.windowType)
-    ?? WINDOW_TYPES.find((w) => w.id === data.windowType);
-  const selectedWindowVisual = windowTypeVisuals[data.windowType] ?? defaultWindowVisual;
-  const instruction = MEASUREMENT_INSTRUCTIONS.find((i) => i.windowType === data.windowType);
-  const availableMounts = instruction
-    ? MOUNT_TYPES.filter((m) => instruction.mountOptions.includes(m.id))
-    : MOUNT_TYPES;
+  const completeCurrentPanel = () => {
+    if (!applicationArea || !currentPanel) return;
+    setError("");
+    try {
+      calculatePanel(applicationArea, currentPanel, currentPanelIndex);
+      if (hasDuplicateMeasurement(panels, currentPanelIndex) && !currentPanel.duplicateConfirmed) {
+        setError("Camlar aynı görünebilir ama ölçüleri farklı olabilir. Bu camı ayrıca ölçtüğünüzü onaylayın.");
+        return;
+      }
 
-  const handleCapture = (imageData: string) => {
-    setCapturedPhotos((prev) => [...prev, imageData]);
+      const nextPanels = panels.map((panel, index) => index === currentPanelIndex ? { ...panel, completed: true } : panel);
+      setPanels(nextPanels);
+      const nextIncomplete = nextPanels.findIndex((panel, index) => index > currentPanelIndex && !panel.completed);
+      if (nextIncomplete >= 0) {
+        setCurrentPanelIndex(nextIncomplete);
+        setCameraMode("width");
+      }
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "Bu ölçüyü bir kez daha kontrol edelim.");
+    }
   };
 
-  const addPanel = () => {
-    setData((prev) => ({
-      ...prev,
-      panels: [...prev.panels, { width: "", height: "", isOpenable: false }],
-    }));
+  const speakInstruction = () => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(cameraInstruction);
+    utterance.lang = "tr-TR";
+    utterance.rate = 0.95;
+    window.speechSynthesis.speak(utterance);
   };
 
-  const updatePanel = (index: number, field: string, value: string | boolean) => {
-    setData((prev) => {
-      const panels = [...prev.panels];
-      panels[index] = { ...panels[index], [field]: value };
-      return { ...prev, panels };
+  const canGoNext = () => {
+    if (step === 1) return Boolean(preparationMethod);
+    if (step === 2) {
+      if (!applicationArea || !mountType || !caseType || pieceCount < 1) return false;
+      if (!validateMountingType(applicationArea, mountType).valid) return false;
+      return applicationArea !== "cam_balkon" || firstOpeningConfirmed;
+    }
+    if (step === 3) return panels.length === pieceCount && panels.every(panel => panel.completed);
+    return false;
+  };
+
+  const goNext = () => {
+    if (!canGoNext()) return;
+    setStep(current => Math.min(4, current + 1));
+    setError("");
+  };
+
+  const buildText = () => {
+    if (!applicationArea || !mountType) return "";
+    return buildMeasurementText({ applicationArea, mountType, measurements: calculatedMeasurements });
+  };
+
+  const downloadMeasurementList = () => {
+    const text = buildText();
+    if (!text) return;
+    const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `RGNFIX-olcu-listesi-${new Date().toISOString().slice(0, 10)}.txt`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const sendMeasurementsToWhatsApp = () => {
+    const text = buildText();
+    if (!text) return;
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const shareMeasurementPhoto = async () => {
+    if (capturedPhotos.length === 0) {
+      setError("Önce kamera bölümünden ölçü fotoğrafı çekin.");
+      return;
+    }
+
+    const file = dataUrlToFile(capturedPhotos[0], `RGNFIX-olcu-fotografi-${Date.now()}.jpg`);
+    const shareData: ShareData = {
+      title: "RGNFIX Ölçü Fotoğrafı",
+      text: "RGNFIX Ölçü Asistanı üzerinden çektiğim ölçü fotoğrafını gönderiyorum.",
+      files: [file],
+    };
+    const shareNavigator = navigator as Navigator & { canShare?: (data: ShareData) => boolean };
+
+    if (navigator.share && (!shareNavigator.canShare || shareNavigator.canShare(shareData))) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (shareError) {
+        if (shareError instanceof DOMException && shareError.name === "AbortError") return;
+      }
+    }
+
+    const anchor = document.createElement("a");
+    anchor.href = capturedPhotos[0];
+    anchor.download = file.name;
+    anchor.click();
+    window.open(`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent("RGNFIX ölçü fotoğrafımı kontrol etmenizi rica ediyorum. Fotoğrafı biraz önce cihazıma indirdim ve bu sohbete ekleyeceğim.")}`, "_blank", "noopener,noreferrer");
+  };
+
+  const transferToPriceCalculator = () => {
+    if (!applicationArea || !mountType || !allConfirmationsChecked || calculatedMeasurements.length === 0) return;
+    const payload = createTransferPayload({
+      applicationArea,
+      mountType,
+      caseType,
+      measurements: calculatedMeasurements,
     });
+    sessionStorage.setItem(TRANSFER_KEY, JSON.stringify(payload));
+    const first = calculatedMeasurements[0];
+    const query = new URLSearchParams({
+      from: "olcu-asistani",
+      mount: mountType,
+      case: caseType,
+      window: applicationArea,
+      width: formatCm(first.productionWidthCm),
+      height: formatCm(first.productionHeightCm),
+      count: "1",
+    });
+    navigate(`/fiyat-hesapla?${query.toString()}`);
   };
 
-  const removePanel = (index: number) => {
-    if (data.panels.length > 1) {
-      setData((prev) => ({
-        ...prev,
-        panels: prev.panels.filter((_, i) => i !== index),
-      }));
-    }
+  const resetAll = () => {
+    setStarted(false);
+    setStep(1);
+    setPreparationMethod("");
+    setApplicationArea("");
+    setMountType("");
+    setCaseType("kalin");
+    setPieceCount(1);
+    setFirstOpeningConfirmed(false);
+    setPanels([createPanel(0)]);
+    setCurrentPanelIndex(0);
+    setCameraMode("frame");
+    setCapturedPhotos([]);
+    setConfirmations({});
+    setError("");
+    sessionStorage.removeItem(TRANSFER_KEY);
   };
 
-  // Toplam genişlik ve yükseklik hesapla (cam balkon için)
-  const getTotalMeasurements = () => {
-    if (data.windowType === "cam-balkon") {
-      const validPanels = data.panels.filter((p) => parseFloat(p.width) > 0 && parseFloat(p.height) > 0);
-      const totalWidth = validPanels.reduce((sum, p) => {
-        const w = parseFloat(p.width);
-        return sum + (p.isOpenable ? w - 2 : w);
-      }, 0);
-      const avgHeight = validPanels.length > 0
-        ? validPanels.reduce((sum, p) => sum + parseFloat(p.height), 0) / validPanels.length
-        : 0;
-      return { width: totalWidth, height: avgHeight, count: validPanels.length };
-    }
-    return { width: parseFloat(data.width) || 0, height: parseFloat(data.height) || 0, count: parseInt(data.windowCount) || 1 };
-  };
+  if (!started) {
+    return (
+      <div className="container max-w-4xl py-10 sm:py-16">
+        <Card className="overflow-hidden border-border/60 shadow-lg">
+          <div className="grid lg:grid-cols-2">
+            <div className="flex min-h-[360px] flex-col justify-center bg-primary px-7 py-10 text-primary-foreground sm:px-10">
+              <div className="mb-5 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/10"><Ruler className="h-7 w-7" /></div>
+              <p className="text-sm font-semibold text-white/75">RGNFIX CANLI ÖLÇÜ ASİSTANI</p>
+              <h1 className="mt-3 text-3xl font-serif font-bold sm:text-4xl">Ölçü almak çok kolay 😊</h1>
+              <p className="mt-4 max-w-md leading-7 text-white/80">Yanınıza çelik metre ile kalem-kâğıt alın. Dilerseniz telefonunuzun notlar bölümünü de kullanabilirsiniz.</p>
+            </div>
+            <CardContent className="flex flex-col justify-center p-7 sm:p-10">
+              <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+                <strong>Önemli:</strong> Kamera ölçü tahmini yapmaz. Santimetre değerini çelik metreden siz okuyup yazarsınız. Sistem hiçbir ölçüyü sessizce değiştirmez veya yuvarlamaz.
+              </div>
+              <div className="mt-6 space-y-3 text-sm text-muted-foreground">
+                <p>✓ Bütün ölçüler santimetre olarak girilir.</p>
+                <p>✓ 56.4 gibi küsuratlar aynen korunur.</p>
+                <p>✓ Her cam ayrı ayrı ölçülür.</p>
+                <p>✓ Matematiksel paylar sistem tarafından uygulanır.</p>
+              </div>
+              <Button onClick={() => setStarted(true)} className="mt-7 h-12 gap-2 text-base">
+                Ölçü Almaya Başla <ArrowRight className="h-4 w-4" />
+              </Button>
+            </CardContent>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
-    <div className="container py-8 max-w-5xl">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-          <Ruler className="h-3.5 w-3.5" />
-          Profesyonel Ölçü Rehberi
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">
-          Akıllı Ölçü Asistanı
-        </h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">
-          Sesli rehberlik ve görüntülü yardım ile profesyonel ölçü alın
-        </p>
+    <div className="container max-w-6xl py-8">
+      <div className="mb-7 text-center">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary"><Ruler className="h-4 w-4" /> Canlı Ölçü Yönlendirmesi</div>
+        <h1 className="text-3xl font-serif font-bold sm:text-4xl">Akıllı Ölçü Asistanı</h1>
+        <p className="mx-auto mt-2 max-w-2xl text-muted-foreground">Adım adım ilerleyin. Metrede gördüğünüz ölçüyü küsuratıyla birlikte aynen yazın.</p>
       </div>
 
-      {/* Progress */}
-      <div className="flex items-center justify-center gap-2 mb-8">
-        {steps.map((s, i) => (
-          <div key={s.id} className="flex items-center gap-2">
-            <div
-              className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium transition-colors ${
-                step > s.id
-                  ? "bg-primary text-primary-foreground"
-                  : step === s.id
-                  ? "bg-primary/10 text-primary border-2 border-primary"
-                  : "bg-muted text-muted-foreground"
-              }`}
-            >
-              {step > s.id ? <CheckCircle2 className="h-4 w-4" /> : s.id}
+      <div className="mb-8 flex items-center justify-center gap-1 sm:gap-3">
+        {steps.map((wizardStep, index) => (
+          <div key={wizardStep.id} className="flex items-center gap-1 sm:gap-3">
+            <div className="flex flex-col items-center gap-1">
+              <div className={`flex h-9 w-9 items-center justify-center rounded-full text-sm font-semibold ${step > wizardStep.id ? "bg-primary text-primary-foreground" : step === wizardStep.id ? "border-2 border-primary bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+                {step > wizardStep.id ? <Check className="h-4 w-4" /> : wizardStep.id}
+              </div>
+              <span className="hidden text-[11px] font-medium sm:block">{wizardStep.title}</span>
             </div>
-            {i < steps.length - 1 && (
-              <div className={`w-8 h-0.5 ${step > s.id ? "bg-primary" : "bg-muted"}`} />
-            )}
+            {index < steps.length - 1 && <div className={`mb-4 h-0.5 w-7 sm:w-16 ${step > wizardStep.id ? "bg-primary" : "bg-muted"}`} />}
           </div>
         ))}
       </div>
 
-      <div className="grid lg:grid-cols-5 gap-6">
-        {/* Main Form */}
-        <div className="lg:col-span-3">
-          <Card className="border-border/50">
-            <CardHeader>
-              <CardTitle className="text-xl font-serif">
-                {steps[step - 1].title}
-              </CardTitle>
-              <p className="text-sm text-muted-foreground">{steps[step - 1].desc}</p>
-            </CardHeader>
+      {step === 1 && (
+        <Card className="mx-auto max-w-4xl border-border/60">
+          <CardHeader>
+            <CardTitle>Ölçüleri nereye kaydedeceksiniz?</CardTitle>
+            <p className="text-sm text-muted-foreground">Her camı <strong>EN × BOY</strong> şeklinde ayrı ayrı kaydedin.</p>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <RadioGroup value={preparationMethod} onValueChange={value => setPreparationMethod(value as PreparationMethod)}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {preparationOptions.map(option => {
+                  const Icon = option.icon;
+                  return (
+                    <Label key={option.id} htmlFor={`prep-${option.id}`} className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-4 transition ${preparationMethod === option.id ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                      <RadioGroupItem id={`prep-${option.id}`} value={option.id} className="mt-1" />
+                      <Icon className="mt-0.5 h-5 w-5 text-primary" />
+                      <span><strong className="block text-sm">{option.title}</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">{option.description}</span></span>
+                    </Label>
+                  );
+                })}
+              </div>
+            </RadioGroup>
+
+            {preparationMethod === "second-device" && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">Ölçüm yaptığınız telefonun kamerasını kullanırken, RGNFIX’i başka bir telefondan açıp ölçüleri fiyat hesaplama bölümüne <strong>EN × BOY</strong> şeklinde yazabilirsiniz.</div>
+            )}
+            {(preparationMethod === "paper" || preparationMethod === "notes") && (
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">Ölçüleriniz tamamlandığında not aldığınız kâğıdın veya telefon ekranının fotoğrafını WhatsApp üzerinden bize gönderebilirsiniz.</div>
+            )}
+
+            <div className="rounded-2xl bg-muted/60 p-4 font-mono text-sm leading-7">
+              <p>1. Cam: 56.4 × 178.3 cm</p>
+              <p>2. Cam: 57.1 × 178.2 cm</p>
+              <p>3. Cam: 56.8 × 178.4 cm</p>
+            </div>
+            <div className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm leading-6 text-amber-950"><strong>Doğru ölçü için çelik metre kullanın.</strong> Kumaş mezura, cetvel, ip veya kamera ölçümü kullanmayın.</div>
+          </CardContent>
+        </Card>
+      )}
+
+      {step === 2 && (
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="border-border/60 lg:col-span-3">
+            <CardHeader><CardTitle>Uygulama Alanı</CardTitle><p className="text-sm text-muted-foreground">Perdenin uygulanacağı pencere veya kapı sistemini seçin.</p></CardHeader>
             <CardContent className="space-y-6">
-              {step === 1 && (
-                <div className="overflow-hidden rounded-2xl border bg-muted/20" aria-live="polite">
-                  <img
-                    key={selectedWindowVisual.image}
-                    src={selectedWindowVisual.image}
-                    alt={selectedWindowVisual.alt}
-                    className="w-full aspect-[16/9] object-cover animate-in fade-in duration-300"
-                  />
-                  <div className="p-4">
-                    <p className="text-sm font-semibold">{selectedWindowVisual.title}</p>
-                    <p className="text-xs text-muted-foreground mt-1">{selectedWindowVisual.description}</p>
-                  </div>
+              <RadioGroup value={applicationArea} onValueChange={value => selectApplicationArea(value as ApplicationArea)}>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {APPLICATION_AREAS.map(option => (
+                    <Label key={option.id} htmlFor={option.id} className={`cursor-pointer rounded-xl border p-4 transition ${applicationArea === option.id ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                      <div className="flex items-start gap-3"><RadioGroupItem id={option.id} value={option.id} className="mt-1" /><span><strong className="block text-sm">{option.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{option.description}</span></span></div>
+                    </Label>
+                  ))}
                 </div>
-              )}
+              </RadioGroup>
 
-              {step === 2 && data.windowType !== "cam-balkon" && (
-                <div className="grid sm:grid-cols-2 gap-3">
-                  <figure className="overflow-hidden rounded-2xl border bg-card">
-                    <img src="/measurement/width.png" alt="Cam içi genişlik ölçümü" className="w-full aspect-[4/3] object-cover" />
-                    <figcaption className="p-3 text-xs"><strong className="block text-sm mb-1">1. Genişliği ölçün</strong>Metreyi iç cam çıtasından karşı iç cam çıtasına düz tutun.</figcaption>
-                  </figure>
-                  <figure className="overflow-hidden rounded-2xl border bg-card">
-                    <img src="/measurement/height.png" alt="Cam içi yükseklik ölçümü" className="w-full aspect-[4/3] object-cover" />
-                    <figcaption className="p-3 text-xs"><strong className="block text-sm mb-1">2. Yüksekliği ölçün</strong>Üst iç cam çıtasından alt iç cam çıtasına dik ölçün.</figcaption>
-                  </figure>
-                </div>
-              )}
-
-              {/* Step 1: Window Type */}
-              {step === 1 && (
-                <RadioGroup value={data.windowType} onValueChange={(v) => setData({ ...data, windowType: v, mountType: "", panels: [{ width: "", height: "", isOpenable: false }] })}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {measurementWindowTypes.map((wt) => (
-                      <Label
-                        key={wt.id}
-                        htmlFor={wt.id}
-                        className={`flex flex-col gap-1 p-4 rounded-xl border cursor-pointer transition-all ${
-                          data.windowType === wt.id
-                            ? "border-primary bg-primary/5"
-                            : "border-border hover:border-primary/30"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <RadioGroupItem value={wt.id} id={wt.id} />
-                          <span className="font-medium text-sm">{wt.name}</span>
-                        </div>
-                        <span className="text-xs text-muted-foreground ml-7">{wt.description}</span>
-                      </Label>
-                    ))}
-                  </div>
-                </RadioGroup>
-              )}
-
-              {/* Step 2: Measurements */}
-              {step === 2 && (
-                <div className="space-y-6">
-                  {/* Important notes for selected window type */}
-                  {instruction && (
-                    <div className="p-4 rounded-xl bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800">
-                      <div className="flex gap-2">
-                        <AlertCircle className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
-                        <div className="text-sm text-blue-800 dark:text-blue-300">
-                          <p className="font-medium mb-1">
-                            {selectedWindow?.name} — Ölçü Kuralları:
-                          </p>
-                          <ul className="space-y-1 text-xs">
-                            {instruction.importantNotes.map((note, i) => (
-                              <li key={i}>• {note}</li>
-                            ))}
-                          </ul>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Cam Balkon - Multi panel */}
-                  {data.windowType === "cam-balkon" ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <Label className="text-sm font-medium">Kanat Ölçüleri</Label>
-                        <Button size="sm" variant="outline" onClick={addPanel} className="text-xs rounded-lg">
-                          + Kanat Ekle
-                        </Button>
-                      </div>
-                      {data.panels.map((panel, i) => (
-                        <div key={i} className="p-3 rounded-lg border border-border/50 space-y-3">
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs font-medium text-muted-foreground">Kanat {i + 1}</span>
-                            {data.panels.length > 1 && (
-                              <Button size="sm" variant="ghost" onClick={() => removePanel(i)} className="text-xs h-6 px-2 text-red-500">
-                                Kaldır
-                              </Button>
-                            )}
-                          </div>
-                          <div className="grid grid-cols-2 gap-3">
-                            <div className="space-y-1">
-                              <Label className="text-xs">Genişlik (cm)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Örn: 60"
-                                value={panel.width}
-                                onChange={(e) => updatePanel(i, "width", e.target.value)}
-                                className="rounded-lg h-9 text-sm"
-                              />
-                            </div>
-                            <div className="space-y-1">
-                              <Label className="text-xs">Yükseklik (cm)</Label>
-                              <Input
-                                type="number"
-                                placeholder="Örn: 150"
-                                value={panel.height}
-                                onChange={(e) => updatePanel(i, "height", e.target.value)}
-                                className="rounded-lg h-9 text-sm"
-                              />
-                            </div>
-                          </div>
-                          <label className="flex items-center gap-2 cursor-pointer">
-                            <input
-                              type="checkbox"
-                              checked={panel.isOpenable}
-                              onChange={(e) => updatePanel(i, "isOpenable", e.target.checked)}
-                              className="rounded border-border"
-                            />
-                            <span className="text-xs text-muted-foreground">
-                              Açılır kanat (kollu/zincirli) — 2 cm pay düşülür
-                            </span>
-                          </label>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    /* Standard measurement */
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="width">Genişlik (cm)</Label>
-                          <Input
-                            id="width"
-                            type="number"
-                            placeholder="Örn: 120"
-                            value={data.width}
-                            onChange={(e) => setData({ ...data, width: e.target.value })}
-                            className="rounded-xl"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="height">Yükseklik (cm)</Label>
-                          <Input
-                            id="height"
-                            type="number"
-                            placeholder="Örn: 150"
-                            value={data.height}
-                            onChange={(e) => setData({ ...data, height: e.target.value })}
-                            className="rounded-xl"
-                          />
-                        </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="count">Pencere Adedi</Label>
-                        <Input
-                          id="count"
-                          type="number"
-                          min="1"
-                          value={data.windowCount}
-                          onChange={(e) => setData({ ...data, windowCount: e.target.value })}
-                          className="rounded-xl w-24"
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Step 3: Mount & Case Type */}
-              {step === 3 && (
-                <div className="space-y-6">
-                  {/* Mount Type */}
+              {applicationArea && (
+                <>
+                  {applicationArea !== "cam_balkon" && <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">Bu uygulama alanında kancalı montaj kullanılmaz. Vidalı veya yapıştırmalı montajla devam edebilirsiniz.</div>}
                   <div>
-                    <Label className="text-sm font-medium mb-3 block">Montaj Tipi</Label>
-                    <RadioGroup value={data.mountType} onValueChange={(v) => setData({ ...data, mountType: v })}>
-                      <div className="space-y-3">
-                        {availableMounts.map((mt) => (
-                          <Label
-                            key={mt.id}
-                            htmlFor={`mount-${mt.id}`}
-                            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                              data.mountType === mt.id
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/30"
-                            }`}
-                          >
-                            <RadioGroupItem value={mt.id} id={`mount-${mt.id}`} className="mt-0.5" />
-                            <div>
-                              <span className="font-medium text-sm">{mt.name}</span>
-                              <p className="text-xs text-muted-foreground mt-0.5">{mt.description}</p>
-                            </div>
+                    <Label className="mb-3 block font-semibold">Montaj Tipi</Label>
+                    <RadioGroup value={mountType} onValueChange={value => setMountType(value as MountingType)}>
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {availableMounts.map(option => (
+                          <Label key={option} htmlFor={`mount-${option}`} className={`cursor-pointer rounded-xl border p-4 text-sm transition ${mountType === option ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                            <div className="flex items-center gap-2"><RadioGroupItem id={`mount-${option}`} value={option} /> <strong>{MOUNTING_LABELS[option]}</strong></div>
                           </Label>
                         ))}
                       </div>
                     </RadioGroup>
                   </div>
 
-                  {/* Case Type */}
                   <div>
-                    <Label className="text-sm font-medium mb-3 block">Kasa Tipi</Label>
-                    <RadioGroup value={data.caseType} onValueChange={(v) => setData({ ...data, caseType: v })}>
-                      <div className="space-y-3">
-                        {CASE_TYPES.map((ct) => (
-                          <Label
-                            key={ct.id}
-                            htmlFor={`case-${ct.id}`}
-                            className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-all ${
-                              data.caseType === ct.id
-                                ? "border-primary bg-primary/5"
-                                : "border-border hover:border-primary/30"
-                            }`}
-                          >
-                            <RadioGroupItem value={ct.id} id={`case-${ct.id}`} className="mt-0.5" />
-                            <div>
-                              <span className="font-medium text-sm">{ct.name}</span>
-                              <p className="text-xs text-muted-foreground mt-0.5">
-                                {ct.description}
-                                {ct.surchargePerSqm > 0 && (
-                                  <span className="text-primary font-medium"> (+{ct.surchargePerSqm} ₺/m²)</span>
-                                )}
-                              </p>
-                            </div>
+                    <Label className="mb-3 block font-semibold">Kasa Tipi</Label>
+                    <RadioGroup value={caseType} onValueChange={setCaseType}>
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        {CASE_TYPES.map(option => (
+                          <Label key={option.id} htmlFor={`case-${option.id}`} className={`cursor-pointer rounded-xl border p-4 text-sm transition ${caseType === option.id ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                            <div className="flex items-start gap-2"><RadioGroupItem id={`case-${option.id}`} value={option.id} className="mt-1" /><span><strong className="block">{option.name}</strong><span className="mt-1 block text-xs text-muted-foreground">{option.description}</span></span></div>
                           </Label>
                         ))}
                       </div>
                     </RadioGroup>
                   </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 lg:col-span-2">
+            <CardHeader><CardTitle>{applicationArea === "cam_balkon" ? "Cam Balkon Hazırlığı" : "Parça Sayısı"}</CardTitle></CardHeader>
+            <CardContent className="space-y-5">
+              {applicationArea === "cam_balkon" && (
+                <div className="space-y-4">
+                  <div className="rounded-xl bg-primary/5 p-4 text-sm leading-6"><strong>Ölçüye cam balkon açılırken ilk hareket eden kanattan başlayacağız.</strong><br />İlk açılan kanadı bulun ve hazır olduğunuzda devam edin.</div>
+                  <Label className="flex cursor-pointer items-start gap-3 rounded-xl border p-4 text-sm">
+                    <input type="checkbox" className="mt-1 h-4 w-4" checked={firstOpeningConfirmed} onChange={event => setFirstOpeningConfirmed(event.target.checked)} />
+                    <span><strong>İlk açılan kanadı buldum</strong><span className="mt-1 block text-xs leading-5 text-muted-foreground">Bu kanat 1. kanat olarak kaydedilecek. Siz pay düşmeyeceksiniz.</span></span>
+                  </Label>
+                  <p className="text-sm text-muted-foreground">Camların hepsi aynı görünebilir ama ölçüleri birbirinden farklı olabilir. Bu yüzden her camı tek tek ölçeceğiz.</p>
                 </div>
               )}
-
-              {/* Step 4: Summary */}
-              {step === 4 && (
-                <div className="space-y-6">
-                  <div className="p-6 rounded-xl bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800">
-                    <div className="flex items-center gap-2 mb-4">
-                      <CheckCircle2 className="h-5 w-5 text-green-600" />
-                      <span className="font-semibold text-green-800 dark:text-green-300">Ölçüleriniz Hazır!</span>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Pencere Tipi:</span>
-                        <p className="font-medium">{selectedWindow?.name}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Montaj Tipi:</span>
-                        <p className="font-medium">{MOUNT_TYPES.find((m) => m.id === data.mountType)?.name}</p>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Kasa Tipi:</span>
-                        <p className="font-medium">{CASE_TYPES.find((c) => c.id === data.caseType)?.name}</p>
-                      </div>
-                      {data.windowType === "cam-balkon" ? (
-                        <>
-                          <div>
-                            <span className="text-muted-foreground">Kanat Sayısı:</span>
-                            <p className="font-medium">{data.panels.filter((p) => parseFloat(p.width) > 0).length}</p>
-                          </div>
-                          <div className="col-span-2">
-                            <span className="text-muted-foreground">Kanat Detayları:</span>
-                            <div className="mt-1 space-y-1">
-                              {data.panels.filter((p) => parseFloat(p.width) > 0).map((p, i) => (
-                                <p key={i} className="text-xs font-medium">
-                                  Kanat {i + 1}: {p.width} x {p.height} cm
-                                  {p.isOpenable && <span className="text-primary"> (açılır, -2cm)</span>}
-                                </p>
-                              ))}
-                            </div>
-                          </div>
-                        </>
-                      ) : (
-                        <>
-                          <div>
-                            <span className="text-muted-foreground">Genişlik:</span>
-                            <p className="font-medium">{data.width} cm</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Yükseklik:</span>
-                            <p className="font-medium">{data.height} cm</p>
-                          </div>
-                          <div>
-                            <span className="text-muted-foreground">Adet:</span>
-                            <p className="font-medium">{data.windowCount}</p>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {capturedPhotos.length > 0 && (
-                    <div>
-                      <p className="text-sm font-medium mb-2">Çekilen Fotoğraflar ({capturedPhotos.length})</p>
-                      <div className="flex gap-2 overflow-x-auto pb-2">
-                        {capturedPhotos.map((photo, i) => (
-                          <img key={i} src={photo} alt={`Ölçü ${i + 1}`} className="w-16 h-16 rounded-lg object-cover border shrink-0" />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-col sm:flex-row gap-3">
-                    <Link href={`/fiyat-hesapla?width=${getTotalMeasurements().width}&height=${getTotalMeasurements().height}&mount=${data.mountType}&case=${data.caseType}&count=${getTotalMeasurements().count}&window=${data.windowType}`}>
-                      <Button className="btn-premium gap-2 w-full sm:w-auto">
-                        Fiyat Hesapla
-                        <ArrowRight className="h-4 w-4" />
-                      </Button>
-                    </Link>
-                    <Link href={`/siparis?width=${getTotalMeasurements().width}&height=${getTotalMeasurements().height}&mount=${data.mountType}&case=${data.caseType}&count=${getTotalMeasurements().count}&window=${data.windowType}`}>
-                      <Button variant="outline" className="gap-2 rounded-xl w-full sm:w-auto">
-                        Sipariş Ver
-                      </Button>
-                    </Link>
-                  </div>
-                </div>
-              )}
-
-              {/* Navigation */}
-              {step < 4 && (
-                <div className="flex justify-between pt-4">
-                  <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 1} className="gap-2">
-                    <ArrowLeft className="h-4 w-4" />
-                    Geri
-                  </Button>
-                  <Button onClick={() => setStep(step + 1)} disabled={!canProceed()} className="gap-2 btn-premium">
-                    İleri
-                    <ArrowRight className="h-4 w-4" />
-                  </Button>
+              {applicationArea && (
+                <div className="space-y-2">
+                  <Label htmlFor="piece-count">{applicationArea === "cam_balkon" ? "Cam balkonunuzda kaç cam kanadı var?" : "Kaç ayrı cam/parça ölçülecek?"}</Label>
+                  <Input id="piece-count" type="number" min={1} max={30} value={pieceCount} onChange={event => syncPieceCount(Number(event.target.value))} className="h-12 text-lg" />
+                  <p className="text-xs text-muted-foreground">Bütün parçaların EN ve BOY ölçüsü tamamlanmadan sonuç ekranı açılmaz.</p>
                 </div>
               )}
             </CardContent>
           </Card>
         </div>
+      )}
 
-        {/* Right Sidebar - Voice Guide & Video Helper */}
-        <div className="lg:col-span-2">
-          <div className="sticky top-24 space-y-4">
-            {/* Tab Toggle for Mobile */}
-            <Tabs defaultValue="voice" className="w-full">
-              <TabsList className="w-full">
-                <TabsTrigger value="voice" className="flex-1 gap-1.5 text-xs">
-                  <Volume2 className="h-3.5 w-3.5" />
-                  Sesli Rehber
-                </TabsTrigger>
-                <TabsTrigger value="video" className="flex-1 gap-1.5 text-xs">
-                  <Video className="h-3.5 w-3.5" />
-                  Kamera
-                </TabsTrigger>
-              </TabsList>
-
-              <TabsContent value="voice" className="mt-3">
-                {data.windowType ? (
-                  <VoiceMeasureGuide windowType={data.windowType} />
-                ) : (
-                  <Card className="border-border/50">
-                    <CardContent className="p-6 text-center">
-                      <Volume2 className="h-8 w-8 text-muted-foreground mx-auto mb-2" />
-                      <p className="text-sm text-muted-foreground">
-                        Pencere tipini seçtikten sonra sesli rehber aktif olacak
-                      </p>
-                    </CardContent>
-                  </Card>
+      {step === 3 && applicationArea && currentPanel && (
+        <div className="grid gap-6 lg:grid-cols-5">
+          <div className="space-y-5 lg:col-span-3">
+            <Card className="border-border/60">
+              <CardHeader>
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div><p className="text-sm font-semibold text-primary">{completedCount}/{pieceCount} {selectedArea?.pieceLabel.toLowerCase()} tamamlandı</p><CardTitle className="mt-1">{currentLabel}</CardTitle></div>
+                  <Button variant="outline" size="sm" onClick={speakInstruction} className="gap-2"><Volume2 className="h-4 w-4" /> Talimatı Dinle</Button>
+                </div>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted"><div className="h-full bg-primary transition-all" style={{ width: `${(completedCount / pieceCount) * 100}%` }} /></div>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {applicationArea === "cam_balkon" && currentPanelIndex === 0 && (
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm leading-6 text-emerald-950">Siz sadece çelik metrede gördüğünüz net ölçüyü yazın. Açılma payını sistem otomatik hesaplayacak.</div>
                 )}
-              </TabsContent>
+                {currentPanelIndex > 0 && applicationArea === "cam_balkon" && (
+                  <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-sm leading-6 text-blue-950">Bu normal kanatta hiçbir pay düşülmez. Metrede gördüğünüz EN ve BOY ölçüsünü aynen yazın.</div>
+                )}
 
-              <TabsContent value="video" className="mt-3">
-                <VideoMeasureHelper
-                  currentStep={step}
-                  mountType={data.mountType}
-                  onCapture={handleCapture}
-                />
-              </TabsContent>
-            </Tabs>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="measured-width"><strong>EN:</strong> Soldan sağa (cm)</Label>
+                    <Input id="measured-width" inputMode="decimal" placeholder="Örn: 56.4" value={currentPanel.measuredWidth} onFocus={() => setCameraMode("width")} onChange={event => updateCurrentPanel("measuredWidth", event.target.value)} className="h-12 text-lg" />
+                    <p className="text-xs text-muted-foreground">Sol iç kenardan sağ iç kenara. Yuvarlama yapmayın.</p>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="measured-height"><strong>BOY:</strong> Yukarıdan aşağıya (cm)</Label>
+                    <Input id="measured-height" inputMode="decimal" placeholder="Örn: 178.3" value={currentPanel.measuredHeight} onFocus={() => setCameraMode("height")} onChange={event => updateCurrentPanel("measuredHeight", event.target.value)} className="h-12 text-lg" />
+                    <p className="text-xs text-muted-foreground">Üst iç kenardan alt iç kenara. Küsuratı aynen yazın.</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2 rounded-2xl border bg-muted/30 p-4">
+                  <Label htmlFor="height-check">Boy ölçüsünü ikinci kez kontrol edin</Label>
+                  <Input id="height-check" inputMode="decimal" placeholder="Boyu yeniden ölçüp yazın" value={currentPanel.heightCheck} onFocus={() => setCameraMode("height")} onChange={event => updateCurrentPanel("heightCheck", event.target.value)} className="h-11" />
+                  <p className="text-xs leading-5 text-muted-foreground">İki ölçüm farklıysa sistem ortalama almaz. Çelik metreyi düz tutup yeniden ölçmenizi ister.</p>
+                </div>
+
+                {hasDuplicateMeasurement(panels, currentPanelIndex) && !currentPanel.duplicateConfirmed && (
+                  <div className="rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+                    <p className="font-semibold">Camlar aynı görünebilir ama ölçüleri farklı olabilir. Bu camı ayrıca ölçtüğünüzden emin misiniz?</p>
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                      <Button size="sm" onClick={() => confirmDuplicate(true)}>Evet, bu camı ayrıca ölçtüm</Button>
+                      <Button size="sm" variant="outline" onClick={() => confirmDuplicate(false)}>Hayır, yeniden ölçeceğim</Button>
+                    </div>
+                  </div>
+                )}
+
+                {error && <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm leading-6 text-destructive">{error}</div>}
+
+                <Button onClick={completeCurrentPanel} className="h-12 w-full gap-2"><CheckCircle2 className="h-5 w-5" /> {currentPanel.completed ? "Ölçüyü Yeniden Onayla" : `${currentLabel} Ölçüsünü Tamamla`}</Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-border/60">
+              <CardHeader><CardTitle className="text-lg">Ölçülen Parçalar</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {panels.map((panel, index) => (
+                    <button key={panel.id} type="button" onClick={() => { setCurrentPanelIndex(index); setCameraMode("width"); setError(""); }} className={`rounded-xl border p-4 text-left transition ${currentPanelIndex === index ? "border-primary bg-primary/5" : "hover:border-primary/40"}`}>
+                      <div className="flex items-center justify-between gap-2"><strong className="text-sm">{applicationArea === "cam_balkon" ? `${index + 1}. Kanat${index === 0 ? " – İlk açılan" : ""}` : `${index + 1}. Parça`}</strong>{panel.completed && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}</div>
+                      <p className="mt-2 text-xs text-muted-foreground">{panel.measuredWidth || "—"} × {panel.measuredHeight || "—"} cm</p>
+                    </button>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="lg:col-span-2">
+            <div className="sticky top-24 space-y-4">
+              <LiveMeasurementCamera mode={cameraMode} instruction={cameraInstruction} onCapture={image => setCapturedPhotos(current => [...current, image])} />
+              <div className="rounded-xl border bg-card p-4 text-sm leading-6"><strong>Gayet güzel ilerliyorsunuz.</strong><br />Çelik metreyi düz tutmanız ve metrede gördüğünüz değeri aynen yazmanız yeterli.</div>
+              {capturedPhotos.length > 0 && (
+                <div className="rounded-xl border bg-card p-4"><p className="text-sm font-semibold">Ölçü fotoğrafları ({capturedPhotos.length})</p><div className="mt-3 flex gap-2 overflow-x-auto">{capturedPhotos.map((photo, index) => <img key={`${photo.slice(-20)}-${index}`} src={photo} alt={`Ölçü fotoğrafı ${index + 1}`} className="h-16 w-16 shrink-0 rounded-lg border object-cover" />)}</div></div>
+              )}
+            </div>
           </div>
         </div>
+      )}
+
+      {step === 4 && applicationArea && mountType && (
+        <div className="grid gap-6 lg:grid-cols-5">
+          <Card className="border-border/60 lg:col-span-3">
+            <CardHeader><CardTitle>Ölçü Listesi</CardTitle><p className="text-sm text-muted-foreground">Net ölçünüz ve matematiksel olarak hesaplanan üretim ölçüsü birlikte gösterilir.</p></CardHeader>
+            <CardContent className="space-y-4">
+              {calculatedMeasurements.map(measurement => (
+                <div key={measurement.index} className="rounded-2xl border p-5">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><strong>{measurement.label}</strong>{measurement.panelType === "first_opening_panel" && <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">Sistem payı: -2.0 cm EN</span>}</div>
+                  <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+                    <div className="rounded-xl bg-muted/50 p-3"><span className="text-xs text-muted-foreground">Müşterinin net ölçüsü</span><p className="mt-1 text-lg font-semibold">{formatCm(measurement.measuredWidthCm)} × {formatCm(measurement.measuredHeightCm)} cm</p></div>
+                    <div className="rounded-xl bg-primary/5 p-3"><span className="text-xs text-muted-foreground">Üretim / fiyat aktarım ölçüsü</span><p className="mt-1 text-lg font-semibold text-primary">{formatCm(measurement.productionWidthCm)} × {formatCm(measurement.productionHeightCm)} cm</p></div>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 lg:col-span-2">
+            <CardHeader><CardTitle className="flex items-center gap-2"><ShieldCheck className="h-5 w-5" /> Son Onay</CardTitle><p className="text-sm text-muted-foreground">Bütün kutular işaretlenmeden fiyat hesaplamaya geçilemez.</p></CardHeader>
+            <CardContent className="space-y-3">
+              {confirmationItems.map((item, index) => (
+                <Label key={item} className="flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm leading-5">
+                  <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={Boolean(confirmations[index])} onChange={event => setConfirmations(current => ({ ...current, [index]: event.target.checked }))} />
+                  <span>{item}</span>
+                </Label>
+              ))}
+            </CardContent>
+          </Card>
+
+          <Card className="border-border/60 lg:col-span-5">
+            <CardContent className="p-5">
+              {error && <div className="mb-4 rounded-xl border border-destructive/30 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                <Button onClick={transferToPriceCalculator} disabled={!allConfirmationsChecked} className="gap-2 lg:col-span-2"><ArrowRight className="h-4 w-4" /> Ölçüleri Fiyat Hesaplamaya Aktar</Button>
+                <Button variant="outline" onClick={downloadMeasurementList} className="gap-2"><Download className="h-4 w-4" /> Ölçü Listesini İndir</Button>
+                <Button variant="outline" onClick={sendMeasurementsToWhatsApp} className="gap-2"><MessageCircle className="h-4 w-4" /> WhatsApp’tan Gönder</Button>
+                <Button variant="outline" onClick={() => void shareMeasurementPhoto()} className="gap-2"><Camera className="h-4 w-4" /> Fotoğrafı Gönder</Button>
+              </div>
+              <Button variant="ghost" onClick={resetAll} className="mt-4 w-full gap-2 text-muted-foreground"><RefreshCcw className="h-4 w-4" /> Yeniden Ölç</Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      <div className="mt-7 flex items-center justify-between">
+        <Button variant="ghost" onClick={() => step === 1 ? setStarted(false) : setStep(current => Math.max(1, current - 1))} className="gap-2"><ArrowLeft className="h-4 w-4" /> Geri</Button>
+        {step < 4 && <Button onClick={goNext} disabled={!canGoNext()} className="gap-2">Devam Et <ArrowRight className="h-4 w-4" /></Button>}
       </div>
     </div>
   );
