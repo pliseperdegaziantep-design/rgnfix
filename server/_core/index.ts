@@ -8,6 +8,7 @@ import { registerLocalAuthRoutes } from "./localAuth";
 import { registerAdminRoutes } from "./adminRoutes";
 import { registerPushRoutes } from "./push";
 import { registerUploadRoutes } from "./uploadRoutes";
+import { registerOpenAiSpeechRoutes } from "./openAiSpeech";
 import { ensureAppSchema } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -90,6 +91,7 @@ async function startServer() {
     }
   });
 
+  registerOpenAiSpeechRoutes(app);
   registerStorageProxy(app);
   registerLocalAuthRoutes(app);
   registerPushRoutes(app);
