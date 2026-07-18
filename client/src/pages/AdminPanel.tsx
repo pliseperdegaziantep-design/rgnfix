@@ -160,6 +160,7 @@ export default function AdminPanel() {
     redirectPath: "/giris",
   });
   const [orders, setOrders] = useState<Order[]>([]);
+  const ordersRef = useRef<Order[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [demoMode, setDemoMode] = useState(false);
@@ -202,14 +203,16 @@ export default function AdminPanel() {
       const nextOrders = data.orders ?? [];
       const maxId = nextOrders.reduce((max, order) => Math.max(max, Number(order.id)), 0);
       const storedLastId = Number(localStorage.getItem(LAST_ORDER_KEY) || "0");
+      const currentMaxId = ordersRef.current.reduce((max, order) => Math.max(max, Number(order.id)), 0);
 
       if (!firstLoadRef.current || storedLastId > 0) {
-        const baseline = Math.max(storedLastId, orders.reduce((max, order) => Math.max(max, Number(order.id)), 0));
+        const baseline = Math.max(storedLastId, currentMaxId);
         notifyNewOrders(nextOrders.filter(order => Number(order.id) > baseline));
       }
 
       if (maxId > 0) localStorage.setItem(LAST_ORDER_KEY, String(maxId));
       firstLoadRef.current = false;
+      ordersRef.current = nextOrders;
       setOrders(nextOrders);
       setDemoMode(Boolean(data.demoMode));
     } catch (err) {
@@ -217,7 +220,7 @@ export default function AdminPanel() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [notifyNewOrders, orders]);
+  }, [notifyNewOrders]);
 
   useEffect(() => {
     if (user?.role !== "admin") return;
@@ -249,7 +252,9 @@ export default function AdminPanel() {
       });
       const data = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(data.error || "Sipariş durumu güncellenemedi.");
-      setOrders(current => current.map(order => (order.id === id ? { ...order, status } : order)));
+      const nextOrders = ordersRef.current.map(order => (order.id === id ? { ...order, status } : order));
+      ordersRef.current = nextOrders;
+      setOrders(nextOrders);
       toast.success("Sipariş durumu güncellendi.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Sipariş durumu güncellenemedi.");
