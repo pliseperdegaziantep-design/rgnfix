@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CASE_TYPES, MOUNT_TYPES, PROFILE_COLORS, WINDOW_TYPES } from "@shared/types";
+import { formatFabricVariant, getCurrentFabricPrice, getFabricVariants, type FabricVariant } from "@shared/fabricCatalog";
 import { toast } from "sonner";
 
 type MeasurementRow = {
@@ -30,7 +31,6 @@ type MeasurementRow = {
   height: string;
   quantity: string;
   deductSashAllowance: boolean;
-  sashAllowance: string;
 };
 
 const emptyMeasurement = (id: string): MeasurementRow => ({
@@ -39,8 +39,31 @@ const emptyMeasurement = (id: string): MeasurementRow => ({
   height: "",
   quantity: "1",
   deductSashAllowance: false,
-  sashAllowance: "2",
 });
+
+function parseCm(value: string) {
+  return Number(String(value).replace(",", ".")) || 0;
+}
+
+function normalizeWindowType(value: string) {
+  const map: Record<string, string> = {
+    cam_balkon: "cam-balkon",
+    pvc_pencere: "pvc-cam",
+    pvc_kapi: "balkon-kapisi",
+    pvc_surgulu_kapi: "surgulu-kapi",
+    aluminyum_pencere: "aluminyum",
+    aluminyum_kapi: "aluminyum",
+    aluminyum_surgulu_kapi: "surgulu-kapi",
+  };
+  return map[value] || value;
+}
+
+function readApiVariants(colors: unknown): FabricVariant[] {
+  if (!Array.isArray(colors)) return [];
+  return colors
+    .filter((color): color is string => typeof color === "string" && color.trim().length > 0)
+    .map((color, index) => ({ code: `VR ${String(index + 1).padStart(2, "0")}`, name: color.trim() }));
+}
 
 export default function OrderPage() {
   const { isAuthenticated, user } = useAuth();
@@ -61,8 +84,8 @@ export default function OrderPage() {
   ]);
   const [orderData, setOrderData] = useState({
     fabricId: params.get("fabric") || "",
-    fabricColor: params.get("fabricColor") || "Sipariş sırasında teyit edilecek",
-    windowType: params.get("window") || "",
+    fabricColor: params.get("fabricColor") || "",
+    windowType: normalizeWindowType(params.get("window") || ""),
     profileColor: params.get("profile") || "",
     mountType: params.get("mount") || "",
     caseType: params.get("case") === "slim" ? "slim" as const : "kalin" as const,
@@ -75,9 +98,15 @@ export default function OrderPage() {
 
   const createOrderMutation = trpc.orders.create.useMutation();
   const selectedFabric = fabrics?.find(fabric => fabric.id.toString() === orderData.fabricId);
+  const catalogVariants = selectedFabric ? getFabricVariants(selectedFabric.slug) : [];
+  const variantOptions = catalogVariants.length > 0 ? catalogVariants : readApiVariants(selectedFabric?.colors);
+  const selectedPricePerSqm = selectedFabric
+    ? getCurrentFabricPrice(selectedFabric.slug, parseFloat(selectedFabric.pricePerSqm))
+    : 0;
   const availableProfileColors = orderData.caseType === "slim"
     ? PROFILE_COLORS.filter(color => color.id === "beyaz" || color.id === "antrasit")
     : PROFILE_COLORS;
+  const isCamBalcony = orderData.windowType === "cam-balkon";
 
   useEffect(() => {
     if (!initialSeriesSlug || orderData.fabricId || !fabrics?.length) return;
@@ -98,13 +127,9 @@ export default function OrderPage() {
     }));
   }, [user]);
 
-  const roundTo5 = (value: number) => Math.ceil(value / 5) * 5;
   const getNetWidth = (measurement: MeasurementRow) => {
-    const width = parseFloat(measurement.width) || 0;
-    const allowance = orderData.windowType === "cam-balkon" && measurement.deductSashAllowance
-      ? parseFloat(measurement.sashAllowance) || 0
-      : 0;
-    return Math.max(width - allowance, 0);
+    const width = parseCm(measurement.width);
+    return Math.max(width - (isCamBalcony && measurement.deductSashAllowance ? 2 : 0), 0);
   };
 
   const updateMeasurement = (id: string, patch: Partial<MeasurementRow>) => {
@@ -121,26 +146,33 @@ export default function OrderPage() {
   };
 
   const totalPrice = useMemo(() => {
-    if (!selectedFabric) return 0;
+    if (!selectedFabric || selectedPricePerSqm <= 0) return 0;
     const caseSurcharge = CASE_TYPES.find(item => item.id === orderData.caseType)?.surchargePerSqm || 0;
-    const unitPrice = parseFloat(selectedFabric.pricePerSqm) + caseSurcharge;
+    const unitPrice = selectedPricePerSqm + caseSurcharge;
 
     return measurements.reduce((total, measurement) => {
-      const netWidth = getNetWidth(measurement);
-      const height = parseFloat(measurement.height) || 0;
-      if (netWidth <= 0 || height <= 0) return total;
-      const area = Math.max((roundTo5(netWidth) * roundTo5(height)) / 10000, 1);
+      const width = getNetWidth(measurement);
+      const height = parseCm(measurement.height);
+      if (width <= 0 || height <= 0) return total;
+      const area = Math.max((width * height) / 10000, 1);
       return total + area * unitPrice * (parseInt(measurement.quantity, 10) || 1);
     }, 0);
-  }, [selectedFabric, measurements, orderData.caseType, orderData.windowType]);
+  }, [selectedFabric, selectedPricePerSqm, measurements, orderData.caseType, isCamBalcony]);
 
   const canContinue = useMemo(() => {
     if (step === 1) {
-      return Boolean(orderData.fabricId && orderData.windowType && orderData.profileColor && orderData.mountType && orderData.caseType);
+      return Boolean(
+        orderData.fabricId &&
+        orderData.fabricColor &&
+        orderData.windowType &&
+        orderData.profileColor &&
+        orderData.mountType &&
+        orderData.caseType
+      );
     }
     if (step === 2) {
       return measurements.length > 0 && measurements.every(measurement =>
-        getNetWidth(measurement) > 0 && parseFloat(measurement.height) > 0 && parseInt(measurement.quantity, 10) > 0
+        getNetWidth(measurement) > 0 && parseCm(measurement.height) > 0 && parseInt(measurement.quantity, 10) > 0
       );
     }
     if (step === 3) {
@@ -152,11 +184,11 @@ export default function OrderPage() {
       );
     }
     return true;
-  }, [orderData, step, measurements]);
+  }, [orderData, step, measurements, isCamBalcony]);
 
   const goForward = () => {
     if (!canContinue) {
-      toast.error("Devam etmek için zorunlu alanları eksiksiz doldurun.");
+      toast.error("Devam etmek için gerekli alanları doldurun.");
       return;
     }
     setStep(current => current + 1);
@@ -170,10 +202,10 @@ export default function OrderPage() {
         0
       );
       const measurementSummary = measurements.map((measurement, index) => {
-        const allowanceText = orderData.windowType === "cam-balkon" && measurement.deductSashAllowance
-          ? `, açılır kanat payı -${measurement.sashAllowance} cm`
+        const openingText = isCamBalcony && measurement.deductSashAllowance
+          ? `, açılır kanat, üretim eni ${getNetWidth(measurement)} cm`
           : "";
-        return `${index + 1}. ölçü: ${measurement.width} × ${measurement.height} cm, net genişlik ${getNetWidth(measurement)} cm, ${measurement.quantity} adet${allowanceText}`;
+        return `${index + 1}. ölçü: ${measurement.width} × ${measurement.height} cm, ${measurement.quantity} adet${openingText}`;
       }).join("\n");
 
       const result = await createOrderMutation.mutateAsync({
@@ -184,7 +216,7 @@ export default function OrderPage() {
         mountType: orderData.mountType,
         caseType: orderData.caseType,
         width: getNetWidth(firstMeasurement),
-        height: parseFloat(firstMeasurement.height),
+        height: parseCm(firstMeasurement.height),
         quantity: totalQuantity,
         totalPrice,
         customerName: orderData.customerName,
@@ -215,7 +247,7 @@ export default function OrderPage() {
           <ShoppingCart className="h-3.5 w-3.5" /> Online Sipariş
         </div>
         <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Sipariş Oluştur</h1>
-        <p className="text-sm text-muted-foreground">Ölçülerinizi girin, ürününüz size özel hazırlansın.</p>
+        <p className="text-sm text-muted-foreground">Ürünü ve ölçüleri seçerek siparişinizi oluşturun.</p>
       </div>
 
       {!isAuthenticated && step < 4 && (
@@ -236,7 +268,7 @@ export default function OrderPage() {
       )}
 
       <div className="flex items-center justify-center gap-2 mb-8">
-        {["Ürün Seçimi", "Ölçüler", "Teslimat", "Onay"].map((label, index) => (
+        {["Ürün", "Ölçü", "Teslimat", "Onay"].map((label, index) => (
           <div key={label} className="flex items-center gap-2">
             <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
               step > index + 1
@@ -257,12 +289,26 @@ export default function OrderPage() {
           {step === 1 && (
             <div className="space-y-5">
               <div className="space-y-2">
-                <Label>Kumaş Tipi</Label>
-                <Select value={orderData.fabricId} onValueChange={value => setOrderData({ ...orderData, fabricId: value })}>
+                <Label>Kumaş Serisi</Label>
+                <Select value={orderData.fabricId} onValueChange={value => setOrderData({ ...orderData, fabricId: value, fabricColor: "" })}>
                   <SelectTrigger className="rounded-xl"><SelectValue placeholder="Kumaş seçin" /></SelectTrigger>
                   <SelectContent>
                     {fabrics?.map(fabric => (
-                      <SelectItem key={fabric.id} value={fabric.id.toString()}>{fabric.name} - {fabric.pricePerSqm} ₺/m²</SelectItem>
+                      <SelectItem key={fabric.id} value={fabric.id.toString()}>
+                        {fabric.name} - {getCurrentFabricPrice(fabric.slug, parseFloat(fabric.pricePerSqm))} ₺/m²
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Kumaş Varyantı</Label>
+                <Select value={orderData.fabricColor} onValueChange={value => setOrderData({ ...orderData, fabricColor: value })} disabled={!selectedFabric}>
+                  <SelectTrigger className="rounded-xl"><SelectValue placeholder={selectedFabric ? "Varyant seçin" : "Önce kumaş seçin"} /></SelectTrigger>
+                  <SelectContent>
+                    {variantOptions.map(variant => (
+                      <SelectItem key={variant.code} value={formatFabricVariant(variant)}>{formatFabricVariant(variant)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -286,24 +332,26 @@ export default function OrderPage() {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label>Profil Rengi</Label>
-                <Select value={orderData.profileColor} onValueChange={value => setOrderData({ ...orderData, profileColor: value })}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Profil rengi seçin" /></SelectTrigger>
-                  <SelectContent>
-                    {availableProfileColors.map(color => <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Profil Rengi</Label>
+                  <Select value={orderData.profileColor} onValueChange={value => setOrderData({ ...orderData, profileColor: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Profil rengi seçin" /></SelectTrigger>
+                    <SelectContent>
+                      {availableProfileColors.map(color => <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div className="space-y-2">
-                <Label>Montaj Tipi</Label>
-                <Select value={orderData.mountType} onValueChange={value => setOrderData({ ...orderData, mountType: value })}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Montaj tipi seçin" /></SelectTrigger>
-                  <SelectContent>
-                    {MOUNT_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label>Montaj Tipi</Label>
+                  <Select value={orderData.mountType} onValueChange={value => setOrderData({ ...orderData, mountType: value })}>
+                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Montaj tipi seçin" /></SelectTrigger>
+                    <SelectContent>
+                      {MOUNT_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
 
               <div className="space-y-2">
@@ -330,7 +378,7 @@ export default function OrderPage() {
           {step === 2 && (
             <div className="space-y-5">
               <div className="flex items-center justify-between gap-4">
-                <div><h3 className="font-semibold">Pencere Ölçüleri</h3><p className="text-xs text-muted-foreground">Her farklı pencere için ayrı ölçü ekleyebilirsiniz.</p></div>
+                <h3 className="font-semibold">Ölçüler</h3>
                 <Button type="button" variant="outline" size="sm" onClick={addMeasurement} className="shrink-0 gap-2 rounded-xl"><Plus className="h-4 w-4" /> Ölçü Ekle</Button>
               </div>
 
@@ -345,37 +393,27 @@ export default function OrderPage() {
                     </div>
 
                     <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label>Genişlik (cm)</Label><Input type="number" min="1" value={measurement.width} onChange={event => updateMeasurement(measurement.id, { width: event.target.value })} className="rounded-xl" /></div>
-                      <div className="space-y-2"><Label>Yükseklik (cm)</Label><Input type="number" min="1" value={measurement.height} onChange={event => updateMeasurement(measurement.id, { height: event.target.value })} className="rounded-xl" /></div>
+                      <div className="space-y-2"><Label>EN (cm)</Label><Input inputMode="decimal" value={measurement.width} onChange={event => updateMeasurement(measurement.id, { width: event.target.value })} className="rounded-xl" placeholder="51" /></div>
+                      <div className="space-y-2"><Label>BOY (cm)</Label><Input inputMode="decimal" value={measurement.height} onChange={event => updateMeasurement(measurement.id, { height: event.target.value })} className="rounded-xl" placeholder="150" /></div>
                     </div>
 
-                    {orderData.windowType === "cam-balkon" && (
-                      <div className="mt-4 flex flex-col gap-4 rounded-xl border border-secondary/20 bg-secondary/5 p-4 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="flex items-center gap-3">
-                          <Switch id={`sash-${measurement.id}`} checked={measurement.deductSashAllowance} onCheckedChange={checked => updateMeasurement(measurement.id, { deductSashAllowance: checked })} />
-                          <Label htmlFor={`sash-${measurement.id}`} className="cursor-pointer">
-                            <span className="flex items-center gap-2"><DoorOpen className="h-4 w-4 text-secondary" /> Açılır kanat payını düş</span>
-                            <span className="mt-1 block text-xs font-normal text-muted-foreground">Genişlikten varsayılan 2 cm düşülür.</span>
-                          </Label>
-                        </div>
-                        {measurement.deductSashAllowance && (
-                          <div className="flex items-center gap-2"><Input type="number" min="0" step="0.5" value={measurement.sashAllowance} onChange={event => updateMeasurement(measurement.id, { sashAllowance: event.target.value })} className="h-9 w-20 rounded-lg" /><span className="text-xs text-muted-foreground">cm</span></div>
-                        )}
+                    {isCamBalcony && (
+                      <div className="mt-4 flex items-center gap-3 rounded-xl border border-secondary/20 bg-secondary/5 p-4">
+                        <Switch id={`sash-${measurement.id}`} checked={measurement.deductSashAllowance} onCheckedChange={checked => updateMeasurement(measurement.id, { deductSashAllowance: checked })} />
+                        <Label htmlFor={`sash-${measurement.id}`} className="cursor-pointer">
+                          <span className="flex items-center gap-2"><DoorOpen className="h-4 w-4 text-secondary" /> Açılır kanat</span>
+                          <span className="mt-1 block text-xs font-normal text-muted-foreground">İşaretlenirse yalnızca enden 2 cm düşülür.</span>
+                        </Label>
                       </div>
                     )}
 
-                    <div className="mt-4 flex items-end justify-between gap-4">
-                      <div className="space-y-2"><Label>Adet</Label><Input type="number" min="1" value={measurement.quantity} onChange={event => updateMeasurement(measurement.id, { quantity: event.target.value })} className="w-24 rounded-xl" /></div>
-                      {orderData.windowType === "cam-balkon" && measurement.deductSashAllowance && measurement.width && (
-                        <div className="rounded-lg bg-secondary/10 px-3 py-2 text-right text-xs"><span className="text-muted-foreground">Net üretim genişliği</span><strong className="ml-2 text-secondary">{getNetWidth(measurement)} cm</strong></div>
-                      )}
-                    </div>
+                    <div className="mt-4 space-y-2"><Label>Adet</Label><Input type="number" min="1" value={measurement.quantity} onChange={event => updateMeasurement(measurement.id, { quantity: event.target.value })} className="w-24 rounded-xl" /></div>
                   </div>
                 ))}
               </div>
 
               {totalPrice > 0 && (
-                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex justify-between items-center"><span className="text-sm font-medium">Tahmini Toplam</span><span className="text-lg font-bold text-primary">{totalPrice.toFixed(2)} ₺</span></div>
+                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex justify-between items-center"><span className="text-sm font-medium">Toplam</span><span className="text-lg font-bold text-primary">{totalPrice.toLocaleString("tr-TR")} ₺</span></div>
               )}
             </div>
           )}
