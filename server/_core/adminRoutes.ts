@@ -5,7 +5,16 @@ import { demoOrders } from "../sampleData";
 import { getDb } from "../db";
 import { getLocalAuthUser } from "./localAuth";
 
-const ORDER_STATUSES = new Set([
+type OrderStatus =
+  | "pending"
+  | "confirmed"
+  | "production"
+  | "preparing"
+  | "shipping"
+  | "delivered"
+  | "cancelled";
+
+const ORDER_STATUSES = new Set<OrderStatus>([
   "pending",
   "confirmed",
   "production",
@@ -42,12 +51,13 @@ export function registerAdminRoutes(app: Express) {
     if (!(await requireAdmin(req, res))) return;
 
     const id = Number.parseInt(req.params.id, 10);
-    const status = typeof req.body?.status === "string" ? req.body.status : "";
+    const rawStatus = typeof req.body?.status === "string" ? req.body.status : "";
 
-    if (!Number.isInteger(id) || id <= 0 || !ORDER_STATUSES.has(status)) {
+    if (!Number.isInteger(id) || id <= 0 || !ORDER_STATUSES.has(rawStatus as OrderStatus)) {
       res.status(400).json({ error: "Geçersiz sipariş veya durum." });
       return;
     }
+    const status = rawStatus as OrderStatus;
 
     const db = await getDb();
     if (!db) {
@@ -56,15 +66,15 @@ export function registerAdminRoutes(app: Express) {
         res.status(404).json({ error: "Sipariş bulunamadı." });
         return;
       }
-      (order as { status: string; updatedAt: Date }).status = status;
-      (order as { status: string; updatedAt: Date }).updatedAt = new Date();
+      (order as { status: OrderStatus; updatedAt: Date }).status = status;
+      (order as { status: OrderStatus; updatedAt: Date }).updatedAt = new Date();
       res.json({ success: true, demoMode: true });
       return;
     }
 
     await db
       .update(orders)
-      .set({ status: status as typeof orders.$inferInsert.status, updatedAt: new Date() })
+      .set({ status, updatedAt: new Date() })
       .where(eq(orders.id, id));
 
     res.json({ success: true, demoMode: false });
