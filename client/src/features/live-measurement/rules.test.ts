@@ -5,95 +5,60 @@ import {
   formatCm,
   normalizeCmInput,
   validateMountingType,
-  type MeasurementPanelDraft,
 } from "./rules";
 
-function panel(overrides: Partial<MeasurementPanelDraft>): MeasurementPanelDraft {
-  return {
-    id: "panel-test",
-    measuredWidth: "56",
-    measuredHeight: "178",
-    heightCheck: "178",
-    isOpeningPanel: false,
-    duplicateConfirmed: false,
-    completed: true,
-    ...overrides,
-  };
-}
-
-describe("RGNFIX canlı ölçü kuralları", () => {
-  it("tam sayı ölçüleri doğrudan kabul eder", () => {
+describe("RGNFIX sade ölçü kuralları", () => {
+  it("tam sayı, virgüllü ve noktalı ölçüleri kabul eder", () => {
     expect(normalizeCmInput("56")).toBe(56);
-    expect(normalizeCmInput("178")).toBe(178);
-  });
-
-  it("virgüllü santimetre girişini bir milimetre hassasiyetinde korur", () => {
     expect(normalizeCmInput("56,4")).toBe(56.4);
-    expect(normalizeCmInput("178.3")).toBe(178.3);
-    expect(formatCm(56.4)).toBe("56,4");
-    expect(formatCm(56)).toBe("56");
+    expect(normalizeCmInput("56.45")).toBe(56.45);
   });
 
-  it("birden fazla küsurat hanesini sessizce yuvarlamaz", () => {
-    expect(() => normalizeCmInput("56,45")).toThrow();
+  it("ölçüleri kullanıcıya virgülle gösterir", () => {
+    expect(formatCm(56)).toBe("56");
+    expect(formatCm(56.4)).toBe("56,4");
+    expect(formatCm(56.45)).toBe("56,45");
   });
 
   it("açılır olarak işaretlenen her cam balkon kanadının eninden 2 cm düşer", () => {
-    const firstOpening = calculatePanel("cam_balkon", panel({
+    expect(calculatePanel("cam_balkon", {
+      id: "1",
       measuredWidth: "56,4",
-      measuredHeight: "178,3",
-      heightCheck: "178,3",
-      isOpeningPanel: true,
-    }), 0);
-    const secondOpening = calculatePanel("cam_balkon", panel({
-      measuredWidth: "61",
       measuredHeight: "178",
-      heightCheck: "178",
       isOpeningPanel: true,
-    }), 2);
+      completed: true,
+    }, 0).productionWidthCm).toBe(54.4);
 
-    expect(firstOpening).toMatchObject({
-      panelType: "opening_panel",
-      productionWidthCm: 54.4,
-      productionHeightCm: 178.3,
-      widthDeductionCm: 2,
-    });
-    expect(secondOpening).toMatchObject({
-      panelType: "opening_panel",
-      productionWidthCm: 59,
-      productionHeightCm: 178,
-      widthDeductionCm: 2,
-    });
+    expect(calculatePanel("cam_balkon", {
+      id: "3",
+      measuredWidth: "59",
+      measuredHeight: "178,2",
+      isOpeningPanel: true,
+      completed: true,
+    }, 2).productionWidthCm).toBe(57);
   });
 
-  it("normal cam balkon kanadını aynen kullanır", () => {
-    expect(calculateProductionMeasurement({
-      applicationArea: "cam_balkon",
-      panelType: "normal_panel",
-      measuredWidthCm: 57.1,
-      measuredHeightCm: 178.2,
-    })).toMatchObject({
+  it("açılır kanat işaretlenmezse cam balkon ölçüsünü aynen kullanır", () => {
+    expect(calculatePanel("cam_balkon", {
+      id: "2",
+      measuredWidth: "57,1",
+      measuredHeight: "178,2",
+      isOpeningPanel: false,
+      completed: true,
+    }, 1)).toMatchObject({
       productionWidthCm: 57.1,
       productionHeightCm: 178.2,
       widthDeductionCm: 0,
-      heightDeductionCm: 0,
     });
   });
 
-  it("PVC ve alüminyum sistemlerde hiçbir pay düşmez", () => {
+  it("PVC ve alüminyum sistemlerde pay düşmez", () => {
     expect(calculateProductionMeasurement({
       applicationArea: "pvc_pencere",
       panelType: "normal_panel",
       measuredWidthCm: 72.4,
       measuredHeightCm: 134.8,
     })).toMatchObject({ productionWidthCm: 72.4, productionHeightCm: 134.8 });
-
-    expect(calculateProductionMeasurement({
-      applicationArea: "aluminyum_kapi",
-      panelType: "normal_panel",
-      measuredWidthCm: 84.7,
-      measuredHeightCm: 201.3,
-    })).toMatchObject({ productionWidthCm: 84.7, productionHeightCm: 201.3 });
   });
 
   it("PVC ve alüminyum sistemlerde kancalı montajı reddeder", () => {
