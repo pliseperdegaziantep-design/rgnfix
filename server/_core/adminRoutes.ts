@@ -4,6 +4,7 @@ import { orders } from "../../drizzle/schema";
 import { demoOrders } from "../sampleData";
 import { getDb } from "../db";
 import { getLocalAuthUser } from "./localAuth";
+import { sendPushToUser } from "./push";
 
 type OrderStatus =
   | "pending"
@@ -23,6 +24,16 @@ const ORDER_STATUSES = new Set<OrderStatus>([
   "delivered",
   "cancelled",
 ]);
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Onay Bekliyor",
+  confirmed: "Onaylandı",
+  production: "Üretimde",
+  preparing: "Hazırlanıyor",
+  shipping: "Kargoda",
+  delivered: "Teslim Edildi",
+  cancelled: "İptal Edildi",
+};
 
 async function requireAdmin(req: Request, res: Response) {
   const user = await getLocalAuthUser(req);
@@ -72,10 +83,32 @@ export function registerAdminRoutes(app: Express) {
       return;
     }
 
+    const orderRows = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    const order = orderRows[0];
+    if (!order) {
+      res.status(404).json({ error: "Sipariş bulunamadı." });
+      return;
+    }
+
     await db
       .update(orders)
       .set({ status, updatedAt: new Date() })
       .where(eq(orders.id, id));
+
+    if (order.userId > 0 && order.status !== status) {
+      void sendPushToUser(
+        order.userId,
+        "RGNFIX Sipariş Güncellemesi",
+        `#${order.orderNumber} numaralı siparişiniz: ${STATUS_LABELS[status]}`,
+        {
+          type: "order_status",
+          orderId: String(order.id),
+          orderNumber: order.orderNumber,
+          status,
+          deepLink: `/hesabim?order=${order.id}`,
+        }
+      );
+    }
 
     res.json({ success: true, demoMode: false });
   });
