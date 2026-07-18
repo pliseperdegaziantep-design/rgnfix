@@ -98,15 +98,122 @@ export type ModelInfo = {
 export type ModelsResponse = { object: string; data: ModelInfo[] };
 
 type Provider = "anthropic" | "openai" | "forge";
+type AnthropicCredential = { key: string; source: string };
 
-const anthropicKey = () => process.env.ANTHROPIC_API_KEY?.trim() ?? "";
+const ANTHROPIC_KEY_NAMES = ["ANTHROPIC_API_KEY", "CLAUDE_API_KEY", "CLOUDEIP"] as const;
+
+function anthropicCredential(): AnthropicCredential | null {
+  for (const source of ANTHROPIC_KEY_NAMES) {
+    const key = process.env[source]?.trim() ?? "";
+    if (key.startsWith("sk-ant-")) return { key, source };
+  }
+  return null;
+}
+
+function invalidAnthropicVariable(): string | null {
+  for (const source of ANTHROPIC_KEY_NAMES) {
+    const value = process.env[source]?.trim() ?? "";
+    if (value && !value.startsWith("sk-ant-")) return source;
+  }
+  return null;
+}
+
+const anthropicKey = () => anthropicCredential()?.key ?? "";
 const anthropicModel = () =>
   process.env.ANTHROPIC_MODEL?.trim() || "claude-sonnet-4-20250514";
 const anthropicUrl = () =>
   process.env.ANTHROPIC_API_URL?.trim() || "https://api.anthropic.com/v1/messages";
 
+export function getLLMStatus() {
+  const credential = anthropicCredential();
+  if (credential) {
+    return {
+      configured: true,
+      provider: "anthropic" as const,
+      model: anthropicModel(),
+      keySource: credential.source,
+      message: "Claude API anahtarı algılandı.",
+    };
+  }
+
+  const invalidSource = invalidAnthropicVariable();
+  if (invalidSource) {
+    return {
+      configured: false,
+      provider: "anthropic" as const,
+      model: anthropicModel(),
+      keySource: invalidSource,
+      message: `${invalidSource} değeri gerçek bir Claude API anahtarı değil. Anahtar sk-ant- ile başlamalı.`,
+    };
+  }
+
+  if (ENV.openAiApiKey.trim()) {
+    return {
+      configured: true,
+      provider: "openai" as const,
+      model: ENV.openAiModel || "varsayılan",
+      keySource: "OPENAI_API_KEY",
+      message: "OpenAI bağlantısı algılandı.",
+    };
+  }
+
+  if (ENV.forgeApiKey.trim()) {
+    return {
+      configured: true,
+      provider: "forge" as const,
+      model: "varsayılan",
+      keySource: "BUILT_IN_FORGE_API_KEY",
+      message: "Forge bağlantısı algılandı.",
+    };
+  }
+
+  return {
+    configured: false,
+    provider: "none" as const,
+    model: anthropicModel(),
+    keySource: null,
+    message: "Claude API anahtarı bulunamadı. Hostinger'a ANTHROPIC_API_KEY ekleyin.",
+  };
+}
+
+export function toPublicLLMError(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("tanımlı değil") || normalized.includes("bulunamadı")) {
+    return "Claude API anahtarı sunucuda bulunamadı. Hostinger ortam değişkenlerinde ANTHROPIC_API_KEY değerini kontrol edin ve yeniden dağıtım yapın.";
+  }
+  if (normalized.includes("401") || normalized.includes("authentication_error") || normalized.includes("invalid x-api-key")) {
+    return "Claude API anahtarı geçersiz veya iptal edilmiş. Anthropic Console'dan yeni bir API anahtarı oluşturup Hostinger'a kaydedin.";
+  }
+  if (normalized.includes("402") || normalized.includes("credit") || normalized.includes("billing") || normalized.includes("balance")) {
+    return "Anthropic API hesabında kullanılabilir kredi veya aktif faturalandırma bulunmuyor.";
+  }
+  if (normalized.includes("403") || normalized.includes("permission")) {
+    return "Claude API anahtarının bu modele erişim izni yok.";
+  }
+  if (normalized.includes("404") || normalized.includes("not_found_error") || normalized.includes("model")) {
+    return `Claude modeli kullanılamıyor. Hostinger'daki ANTHROPIC_MODEL değerini kaldırın veya ${anthropicModel()} olarak ayarlayın.`;
+  }
+  if (normalized.includes("429") || normalized.includes("rate_limit")) {
+    return "Claude API kullanım limiti aşıldı. Bir süre sonra tekrar deneyin veya Anthropic kullanım limitlerini kontrol edin.";
+  }
+  if (normalized.includes("fetch failed") || normalized.includes("enotfound") || normalized.includes("network")) {
+    return "Sunucu Claude API'ye bağlanamadı. Hostinger çalışma zamanı ağ bağlantısını kontrol edin.";
+  }
+
+  return "Claude API bağlantısı başarısız oldu. Ayrıntı Hostinger çalışma zamanı günlüklerine kaydedildi.";
+}
+
 function resolveProvider(): Provider {
-  if (anthropicKey()) return "anthropic";
+  const credential = anthropicCredential();
+  if (credential) return "anthropic";
+
+  const invalidSource = invalidAnthropicVariable();
+  if (invalidSource) {
+    throw new Error(`${invalidSource} gerçek bir Anthropic API anahtarı değil; değer sk-ant- ile başlamalı`);
+  }
+
   if (ENV.openAiApiKey.trim()) return "openai";
   if (ENV.forgeApiKey.trim()) return "forge";
   throw new Error(
@@ -157,6 +264,9 @@ async function fetchWithRetry(url: string, init: RequestInit): Promise<Response>
 }
 
 async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
+  const key = anthropicKey();
+  if (!key) throw new Error("ANTHROPIC_API_KEY bulunamadı");
+
   const system = params.messages
     .filter(message => message.role === "system")
     .map(message => textOf(message.content))
@@ -174,7 +284,7 @@ async function invokeAnthropic(params: InvokeParams): Promise<InvokeResult> {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-api-key": anthropicKey(),
+      "x-api-key": key,
       "anthropic-version": "2023-06-01",
     },
     body: JSON.stringify({
