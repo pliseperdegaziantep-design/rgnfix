@@ -6,6 +6,7 @@ import { lazy, Suspense } from "react";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Layout from "./components/Layout";
+import OnlineStatus from "./components/OnlineStatus";
 
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
@@ -18,7 +19,13 @@ const ColorAdvisor = lazy(() => import("./pages/ColorAdvisor"));
 const MountingGuide = lazy(() => import("./pages/MountingGuide"));
 const OrderPage = lazy(() => import("./pages/OrderPage"));
 const CustomerPanel = lazy(() => import("./pages/CustomerPanel"));
+const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const DealerMap = lazy(() => import("./pages/DealerMap"));
+const PrivacyPolicy = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.PrivacyPolicy })));
+const TermsOfUse = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.TermsOfUse })));
+const KvkkNotice = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.KvkkNotice })));
+const SupportPage = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.SupportPage })));
+const DeleteAccountPage = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.DeleteAccountPage })));
 
 function Router() {
   return (
@@ -34,7 +41,13 @@ function Router() {
       <Route path={"/montaj-rehberi"} component={MountingGuide} />
       <Route path={"/siparis"} component={OrderPage} />
       <Route path={"/hesabim"} component={CustomerPanel} />
+      <Route path={"/hesap-ayarlari"} component={AccountSettings} />
       <Route path={"/bayi-haritasi"} component={DealerMap} />
+      <Route path={"/gizlilik-politikasi"} component={PrivacyPolicy} />
+      <Route path={"/kullanim-kosullari"} component={TermsOfUse} />
+      <Route path={"/kvkk-aydinlatma"} component={KvkkNotice} />
+      <Route path={"/destek"} component={SupportPage} />
+      <Route path={"/hesap-silme"} component={DeleteAccountPage} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>
@@ -47,6 +60,7 @@ function App() {
       <ThemeProvider defaultTheme="light" switchable>
         <TooltipProvider>
           <Toaster />
+          <OnlineStatus />
           <Layout>
             <Suspense fallback={<div className="min-h-[50vh] grid place-items-center text-muted-foreground">Sayfa yükleniyor…</div>}>
               <Router />
