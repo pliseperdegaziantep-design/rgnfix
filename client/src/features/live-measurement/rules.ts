@@ -211,8 +211,7 @@ export function buildMeasurementText({
 
   measurements.forEach(measurement => {
     lines.push(measurement.label);
-    lines.push(`Net cam ölçüsü: ${formatCm(measurement.measuredWidthCm)} × ${formatCm(measurement.measuredHeightCm)} cm`);
-    lines.push(`Üretim ölçüsü: ${formatCm(measurement.productionWidthCm)} × ${formatCm(measurement.productionHeightCm)} cm`);
+    lines.push(`Cam ölçüsü: ${formatCm(measurement.measuredWidthCm)} × ${formatCm(measurement.measuredHeightCm)} cm`);
     lines.push("");
   });
 
