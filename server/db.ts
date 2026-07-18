@@ -1,11 +1,11 @@
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/mysql2";
 import { InsertUser, users } from "../drizzle/schema";
-import { ENV } from './_core/env';
+import { ENV } from "./_core/env";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let schemaChecked = false;
 
-// Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
   if (!_db && process.env.DATABASE_URL) {
     try {
@@ -16,6 +16,45 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+function isDuplicateColumnError(error: unknown) {
+  const candidate = error as {
+    code?: string;
+    errno?: number;
+    message?: string;
+    cause?: { code?: string; errno?: number; message?: string };
+  };
+  return (
+    candidate.code === "ER_DUP_FIELDNAME" ||
+    candidate.errno === 1060 ||
+    candidate.cause?.code === "ER_DUP_FIELDNAME" ||
+    candidate.cause?.errno === 1060 ||
+    candidate.message?.includes("Duplicate column") ||
+    candidate.cause?.message?.includes("Duplicate column")
+  );
+}
+
+/**
+ * Hostinger'da ayrıca terminal çalıştırmaya gerek kalmadan küçük, geriye uyumlu
+ * şema güncellemelerini uygular. Var olan kayıtları değiştirmez.
+ */
+export async function ensureAppSchema() {
+  if (schemaChecked) return;
+  const db = await getDb();
+  if (!db) return;
+
+  try {
+    await db.execute(sql.raw("ALTER TABLE users ADD COLUMN passwordHash varchar(255) NULL"));
+    console.log("[Database] users.passwordHash column added");
+  } catch (error) {
+    if (!isDuplicateColumnError(error)) {
+      console.error("[Database] Schema update failed:", error);
+      throw error;
+    }
+  }
+
+  schemaChecked = true;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
@@ -56,8 +95,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.role = user.role;
       updateSet.role = user.role;
     } else if (user.openId === ENV.ownerOpenId) {
-      values.role = 'admin';
-      updateSet.role = 'admin';
+      values.role = "admin";
+      updateSet.role = "admin";
     }
 
     if (!values.lastSignedIn) {
@@ -88,5 +127,3 @@ export async function getUserByOpenId(openId: string) {
 
   return result.length > 0 ? result[0] : undefined;
 }
-
-// TODO: add feature queries here as your schema grows.
