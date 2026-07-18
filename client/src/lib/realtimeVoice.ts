@@ -147,6 +147,51 @@ export class RealtimeVoiceGuide {
     }
   }
 
+  private async requestEphemeralToken() {
+    const response = await fetch("/api/ai/realtime/token", {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => null) as { value?: string; model?: string; error?: string } | null;
+    if (!response.ok || !payload?.value) {
+      throw new Error(payload?.error || `Canlı ses geçici bağlantı anahtarı alınamadı (${response.status}).`);
+    }
+    return payload;
+  }
+
+  private async createDirectAnswer(sdp: string) {
+    const token = await this.requestEphemeralToken();
+    const response = await fetch("https://api.openai.com/v1/realtime/calls", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${token.value}`,
+        "content-type": "application/sdp",
+      },
+      body: sdp,
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("[Realtime Voice] Direct OpenAI call failed:", response.status, detail);
+      throw new Error(`Doğrudan canlı ses bağlantısı kurulamadı (${response.status}).`);
+    }
+    return response.text();
+  }
+
+  private async createServerFallbackAnswer(sdp: string) {
+    const response = await fetch("/api/ai/realtime/call", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ sdp }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(payload?.error || `Canlı ses bağlantısı kurulamadı (${response.status}).`);
+    }
+    return response.text();
+  }
+
   async connect() {
     if (this.peer && this.channel?.readyState === "open") return;
     if (this.connectionPromise) return this.connectionPromise;
@@ -198,25 +243,22 @@ export class RealtimeVoiceGuide {
       const sdp = peer.localDescription?.sdp;
       if (!sdp) throw new Error("Canlı ses bağlantı teklifi oluşturulamadı.");
 
-      const response = await fetch("/api/ai/realtime/call", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ sdp }),
-      });
-      if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;
-        throw new Error(payload?.error || `Canlı ses bağlantısı kurulamadı (${response.status}).`);
+      let answerSdp: string;
+      try {
+        answerSdp = await this.createDirectAnswer(sdp);
+      } catch (directError) {
+        console.warn("[Realtime Voice] Direct connection failed, using server fallback:", directError);
+        answerSdp = await this.createServerFallbackAnswer(sdp);
       }
 
-      const answerSdp = await response.text();
       await peer.setRemoteDescription({ type: "answer", sdp: answerSdp });
       await new Promise<void>((resolve, reject) => {
         if (channel.readyState === "open") {
+          this.configureSession(channel);
           resolve();
           return;
         }
-        const timeout = window.setTimeout(() => reject(new Error("Canlı ses bağlantısı zaman aşımına uğradı.")), 15_000);
+        const timeout = window.setTimeout(() => reject(new Error("Canlı ses bağlantısı zaman aşımına uğradı.")), 20_000);
         channel.addEventListener("open", () => {
           window.clearTimeout(timeout);
           this.configureSession(channel);
