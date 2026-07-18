@@ -7,6 +7,7 @@ import { registerStorageProxy } from "./storageProxy";
 import { registerLocalAuthRoutes } from "./localAuth";
 import { registerAdminRoutes } from "./adminRoutes";
 import { registerPushRoutes } from "./push";
+import { registerUploadRoutes } from "./uploadRoutes";
 import { ensureAppSchema } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -63,6 +64,7 @@ async function startServer() {
   registerStorageProxy(app);
   registerLocalAuthRoutes(app);
   registerPushRoutes(app);
+  registerUploadRoutes(app);
   registerAdminRoutes(app);
   registerOAuthRoutes(app);
 
