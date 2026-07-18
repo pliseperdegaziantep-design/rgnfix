@@ -8,6 +8,7 @@ import { ThemeProvider } from "./contexts/ThemeContext";
 import Layout from "./components/Layout";
 
 const Home = lazy(() => import("./pages/Home"));
+const Login = lazy(() => import("./pages/Login"));
 const AIAdvisor = lazy(() => import("./pages/AIAdvisor"));
 const MeasurementAssistant = lazy(() => import("./pages/MeasurementAssistant"));
 const PriceCalculator = lazy(() => import("./pages/PriceCalculator"));
@@ -22,6 +23,7 @@ function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
+      <Route path={"/giris"} component={Login} />
       <Route path={"/ai-danismani"} component={AIAdvisor} />
       <Route path={"/olcu-asistani"} component={MeasurementAssistant} />
       <Route path={"/fiyat-hesapla"} component={PriceCalculator} />
