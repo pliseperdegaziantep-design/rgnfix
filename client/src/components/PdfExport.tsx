@@ -14,11 +14,12 @@ interface MeasurementItem {
 interface PdfExportProps {
   items: MeasurementItem[];
   seriesId: string;
-  fabricVariant: string;
+  fabricVariant?: string;
   mountType: string;
   caseType: string;
   profileColor: string;
   totalPrice: string;
+  totalArea?: string;
   isFreeShipping: boolean;
 }
 
