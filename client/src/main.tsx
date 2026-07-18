@@ -1,4 +1,5 @@
 import { trpc } from "@/lib/trpc";
+import { installOpenAiSpeechSynthesis } from "@/lib/openAiSpeech";
 import { COOKIE_NAME, UNAUTHED_ERR_MSG } from '@shared/const';
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { httpBatchLink, TRPCClientError } from "@trpc/client";
@@ -7,6 +8,8 @@ import superjson from "superjson";
 import App from "./App";
 import { startLogin } from "./const";
 import "./index.css";
+
+installOpenAiSpeechSynthesis();
 
 const analyticsEndpoint = import.meta.env.VITE_ANALYTICS_ENDPOINT;
 const analyticsWebsiteId = import.meta.env.VITE_ANALYTICS_WEBSITE_ID;
