@@ -8,7 +8,7 @@ export type ApplicationArea =
   | "aluminyum_surgulu_kapi";
 
 export type MountingType = "kancali" | "vidali" | "yapisma";
-export type PanelType = "first_opening_panel" | "normal_panel";
+export type PanelType = "opening_panel" | "normal_panel";
 export type CameraGuideMode = "frame" | "width" | "height";
 
 export interface ApplicationAreaOption {
@@ -23,6 +23,7 @@ export interface MeasurementPanelDraft {
   measuredWidth: string;
   measuredHeight: string;
   heightCheck: string;
+  isOpeningPanel: boolean;
   duplicateConfirmed: boolean;
   completed: boolean;
 }
@@ -82,7 +83,7 @@ export const MOUNTING_LABELS: Record<MountingType, string> = {
 
 export const MEASUREMENT_RULES = {
   cam_balkon: {
-    first_opening_panel: { widthDeductionCm: 2, heightDeductionCm: 0 },
+    opening_panel: { widthDeductionCm: 2, heightDeductionCm: 0 },
     normal_panel: { widthDeductionCm: 0, heightDeductionCm: 0 },
   },
   pvc_pencere: { widthDeductionCm: 0, heightDeductionCm: 0 },
@@ -95,20 +96,20 @@ export const MEASUREMENT_RULES = {
 
 export const CAM_BALCONY_CONFIRMATIONS = [
   "Ölçüleri çelik metreyle aldım.",
-  "Ölçüleri santimetre olarak ve küsuratıyla birlikte yazdım.",
+  "Ölçüleri santimetre olarak aynen yazdım; varsa küsuratı virgülle girdim.",
   "Ölçüleri aşağı veya yukarı yuvarlamadım.",
-  "Cam balkon ölçümüne ilk açılan kanattan başladım.",
   "Bütün camları aynı görünse bile ayrı ayrı ölçtüm.",
   "En ölçülerini cam içinden cam içine aldım.",
   "Boy ölçülerini cam içinden cam içine net aldım.",
-  "İlk açılan kanat için kendim pay düşmedim.",
+  "Açılır olan bütün kanatları ayrı ayrı işaretledim.",
+  "Açılır kanatlar için kendim pay düşmedim.",
   "Girdiğim ölçüleri çelik metreden okuyarak yazdım.",
 ] as const;
 
 export const PVC_ALUMINUM_CONFIRMATIONS = [
   "Ölçüleri çelik metreyle aldım.",
   "En ve boy ölçülerini cam içinden cam içine aldım.",
-  "Ölçüleri küsuratıyla birlikte aynen yazdım.",
+  "Ölçüleri santimetre olarak aynen yazdım; varsa küsuratı virgülle girdim.",
   "Herhangi bir pay düşmedim.",
   "Kancalı montaj seçmediğimi onaylıyorum.",
 ] as const;
@@ -116,13 +117,13 @@ export const PVC_ALUMINUM_CONFIRMATIONS = [
 const CM_PATTERN = /^\d+(?:[.,]\d)?$/;
 
 /**
- * Santimetre girişini doğrular. Bir ondalık basamak = 1 mm hassasiyet.
+ * Santimetre girişini doğrular. Tam sayı veya bir ondalık basamak kabul edilir.
  * Değer sessizce değiştirilmez veya fiyat yuvarlamasına tabi tutulmaz.
  */
 export function normalizeCmInput(value: unknown): number {
   const raw = String(value ?? "").trim();
   if (!CM_PATTERN.test(raw)) {
-    throw new Error("Ölçüyü santimetre olarak en fazla bir küsurat hanesiyle girin. Örnek: 56.4");
+    throw new Error("Ölçüyü santimetre olarak tam sayı veya en fazla bir küsurat hanesiyle girin. Örnek: 56 veya 56,4");
   }
 
   const measurement = Number(raw.replace(",", "."));
@@ -141,7 +142,8 @@ export function internalMmToCm(valueMm: number): number {
 }
 
 export function formatCm(valueCm: number): string {
-  return Number.isInteger(valueCm) ? valueCm.toFixed(0) : valueCm.toFixed(1);
+  const formatted = Number.isInteger(valueCm) ? valueCm.toFixed(0) : valueCm.toFixed(1);
+  return formatted.replace(".", ",");
 }
 
 export function validateMountingType(applicationArea: ApplicationArea, mountingType: MountingType) {
@@ -200,8 +202,8 @@ export function calculatePanel(
     throw new Error("İki boy ölçümü farklı çıktı. Çelik metreyi düz tutarak boyu bir kez daha ölçelim.");
   }
 
-  const panelType: PanelType = applicationArea === "cam_balkon" && index === 0
-    ? "first_opening_panel"
+  const panelType: PanelType = applicationArea === "cam_balkon" && panel.isOpeningPanel
+    ? "opening_panel"
     : "normal_panel";
   const result = calculateProductionMeasurement({
     applicationArea,
@@ -214,7 +216,7 @@ export function calculatePanel(
   const baseLabel = `${index + 1}. ${area?.pieceLabel ?? "Parça"}`;
   return {
     index,
-    label: panelType === "first_opening_panel" ? `${baseLabel} – İlk açılan kanat` : baseLabel,
+    label: panelType === "opening_panel" ? `${baseLabel} – Açılır kanat` : baseLabel,
     panelType,
     ...result,
   };
