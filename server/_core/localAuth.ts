@@ -6,7 +6,7 @@ import { parse as parseCookieHeader } from "cookie";
 import { eq } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
-import { users, type User } from "../../drizzle/schema";
+import { measurements, orders, users, type User } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { getSessionCookieOptions } from "./cookies";
 
@@ -133,6 +133,10 @@ function setSessionCookie(req: Request, res: Response, token: string) {
   });
 }
 
+function clearSessionCookie(req: Request, res: Response) {
+  res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(req), maxAge: -1 });
+}
+
 export async function getLocalAuthUser(req: Request): Promise<User | null> {
   if (!jwtConfigured()) return null;
   const token = parseCookieHeader(req.headers.cookie ?? "")[COOKIE_NAME];
@@ -153,6 +157,15 @@ export async function getLocalAuthUser(req: Request): Promise<User | null> {
   } catch {
     return null;
   }
+}
+
+async function requireCustomer(req: Request, res: Response) {
+  const user = await getLocalAuthUser(req);
+  if (!user || user.id <= 0 || user.role !== "user") {
+    res.status(401).json({ error: "Müşteri girişi gerekli." });
+    return null;
+  }
+  return user;
 }
 
 export function registerLocalAuthRoutes(app: Express) {
@@ -287,8 +300,128 @@ export function registerLocalAuthRoutes(app: Express) {
     }
   });
 
+  app.post("/api/local-auth/change-password", async (req, res) => {
+    try {
+      const sessionUser = await requireCustomer(req, res);
+      if (!sessionUser) return;
+
+      const currentPassword = typeof req.body?.currentPassword === "string" ? req.body.currentPassword : "";
+      const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+      if (newPassword.length < 8) {
+        res.status(400).json({ error: "Yeni şifre en az 8 karakter olmalı." });
+        return;
+      }
+      if (currentPassword === newPassword) {
+        res.status(400).json({ error: "Yeni şifre mevcut şifreden farklı olmalı." });
+        return;
+      }
+
+      const db = await getDb();
+      if (!db) {
+        res.status(503).json({ error: "Veritabanı bağlantısı bulunamadı." });
+        return;
+      }
+      const result = await db.select().from(users).where(eq(users.id, sessionUser.id)).limit(1);
+      const user = result[0];
+      if (!user || !(await verifyPassword(currentPassword, user.passwordHash))) {
+        res.status(401).json({ error: "Mevcut şifre hatalı." });
+        return;
+      }
+
+      await db.update(users).set({ passwordHash: await hashPassword(newPassword) }).where(eq(users.id, user.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Password change failed:", error);
+      res.status(500).json({ error: "Şifre değiştirilemedi." });
+    }
+  });
+
+  app.get("/api/local-auth/export", async (req, res) => {
+    try {
+      const sessionUser = await requireCustomer(req, res);
+      if (!sessionUser) return;
+      const db = await getDb();
+      if (!db) {
+        res.status(503).json({ error: "Veritabanı bağlantısı bulunamadı." });
+        return;
+      }
+
+      const [accountRows, orderRows, measurementRows] = await Promise.all([
+        db.select().from(users).where(eq(users.id, sessionUser.id)).limit(1),
+        db.select().from(orders).where(eq(orders.userId, sessionUser.id)),
+        db.select().from(measurements).where(eq(measurements.userId, sessionUser.id)),
+      ]);
+      const account = accountRows[0];
+      const safeAccount = account ? { ...account, passwordHash: undefined } : null;
+      const payload = {
+        exportedAt: new Date().toISOString(),
+        account: safeAccount,
+        orders: orderRows,
+        measurements: measurementRows,
+      };
+
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename=RGNFIX-verilerim-${new Date().toISOString().slice(0, 10)}.json`);
+      res.send(JSON.stringify(payload, null, 2));
+    } catch (error) {
+      console.error("[Auth] Data export failed:", error);
+      res.status(500).json({ error: "Veriler hazırlanamadı." });
+    }
+  });
+
+  app.delete("/api/local-auth/account", async (req, res) => {
+    try {
+      const sessionUser = await requireCustomer(req, res);
+      if (!sessionUser) return;
+      const password = typeof req.body?.password === "string" ? req.body.password : "";
+      if (!password) {
+        res.status(400).json({ error: "Hesabı silmek için şifrenizi girin." });
+        return;
+      }
+
+      const db = await getDb();
+      if (!db) {
+        res.status(503).json({ error: "Veritabanı bağlantısı bulunamadı." });
+        return;
+      }
+      const userRows = await db.select().from(users).where(eq(users.id, sessionUser.id)).limit(1);
+      const user = userRows[0];
+      if (!user || !(await verifyPassword(password, user.passwordHash))) {
+        res.status(401).json({ error: "Şifre hatalı." });
+        return;
+      }
+
+      const userOrders = await db.select().from(orders).where(eq(orders.userId, sessionUser.id));
+      const hasActiveOrder = userOrders.some(order => !["delivered", "cancelled"].includes(order.status));
+      if (hasActiveOrder) {
+        res.status(409).json({ error: "Devam eden siparişiniz bulunduğu için hesap şu anda silinemez. Sipariş tamamlandıktan veya iptal edildikten sonra tekrar deneyin." });
+        return;
+      }
+
+      await db
+        .update(orders)
+        .set({
+          userId: 0,
+          customerName: "Silinen Kullanıcı",
+          customerPhone: null,
+          customerAddress: null,
+          customerCity: null,
+          customerNote: null,
+        })
+        .where(eq(orders.userId, sessionUser.id));
+      await db.delete(measurements).where(eq(measurements.userId, sessionUser.id));
+      await db.delete(users).where(eq(users.id, sessionUser.id));
+
+      clearSessionCookie(req, res);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Account deletion failed:", error);
+      res.status(500).json({ error: "Hesap silinemedi." });
+    }
+  });
+
   app.post("/api/local-auth/logout", (req, res) => {
-    res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(req), maxAge: -1 });
+    clearSessionCookie(req, res);
     res.json({ success: true });
   });
 }
