@@ -20,6 +20,22 @@ const quickQuestions = [
   "Bebek odası için hangi perde uygun?",
 ];
 
+const maintenanceMessage =
+  "Yapay zekâ danışmanımız geçici olarak kullanılamıyor. Ölçü, fiyat ve sipariş işlemlerinize diğer bölümlerden devam edebilir veya destek ekibimize ulaşabilirsiniz.";
+
+function normalizeAssistantContent(content: string) {
+  const normalized = content.toLocaleLowerCase("tr-TR");
+  if (
+    normalized.includes("demo modundayım") ||
+    normalized.includes("ai anahtarı") ||
+    normalized.includes("claude api") ||
+    normalized.includes("anthropic api")
+  ) {
+    return maintenanceMessage;
+  }
+  return content;
+}
+
 export default function AIAdvisor() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -35,35 +51,35 @@ export default function AIAdvisor() {
     if (!text.trim() || isLoading) return;
 
     const userMessage: Message = { role: "user", content: text.trim() };
-    setMessages((prev) => [...prev, userMessage]);
+    setMessages(prev => [...prev, userMessage]);
     setInput("");
     setIsLoading(true);
 
     try {
       const response = await chatMutation.mutateAsync({
-        messages: [...messages, userMessage].map((m) => ({
-          role: m.role,
-          content: m.content,
+        messages: [...messages, userMessage].map(message => ({
+          role: message.role,
+          content: message.content,
         })),
       });
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
-        { role: "assistant", content: response.content },
+        { role: "assistant", content: normalizeAssistantContent(response.content) },
       ]);
     } catch {
-      setMessages((prev) => [
+      setMessages(prev => [
         ...prev,
-        { role: "assistant", content: "Üzgünüm, bir hata oluştu. Lütfen tekrar deneyin." },
+        { role: "assistant", content: maintenanceMessage },
       ]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      sendMessage(input);
+  const handleKeyDown = (event: React.KeyboardEvent) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      void sendMessage(input);
     }
   };
 
@@ -82,10 +98,8 @@ export default function AIAdvisor() {
         </p>
       </div>
 
-      {/* Chat Area */}
       <Card className="border-border/50 overflow-hidden">
         <div className="h-[500px] flex flex-col">
-          {/* Messages */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full space-y-6">
@@ -95,48 +109,47 @@ export default function AIAdvisor() {
                 <div className="text-center space-y-2">
                   <h3 className="font-semibold">Merhaba! Ben RGNFIX AI Danışmanınız.</h3>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Plise perde hakkında her türlü sorunuzu yanıtlayabilirim.
-                    Kumaş, renk, montaj, fiyat... Ne isterseniz sorun!
+                    Plise perde hakkında kumaş, renk, montaj ve ürün seçimi sorularınızı yanıtlayabilirim.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
-                  {quickQuestions.map((q, i) => (
+                  {quickQuestions.map((question, index) => (
                     <button
-                      key={i}
-                      onClick={() => sendMessage(q)}
+                      key={index}
+                      onClick={() => void sendMessage(question)}
                       className="text-left text-xs px-3 py-2 rounded-lg border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-colors"
                     >
-                      {q}
+                      {question}
                     </button>
                   ))}
                 </div>
               </div>
             )}
 
-            {messages.map((msg, i) => (
+            {messages.map((message, index) => (
               <div
-                key={i}
-                className={`flex gap-3 ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                key={index}
+                className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}
               >
-                {msg.role === "assistant" && (
+                {message.role === "assistant" && (
                   <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
                     <Bot className="h-4 w-4 text-primary" />
                   </div>
                 )}
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${
-                    msg.role === "user"
+                    message.role === "user"
                       ? "bg-primary text-primary-foreground"
                       : "bg-muted"
                   }`}
                 >
-                  {msg.role === "assistant" ? (
-                    <Streamdown>{msg.content}</Streamdown>
+                  {message.role === "assistant" ? (
+                    <Streamdown>{message.content}</Streamdown>
                   ) : (
-                    msg.content
+                    message.content
                   )}
                 </div>
-                {msg.role === "user" && (
+                {message.role === "user" && (
                   <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
                     <User className="h-4 w-4" />
                   </div>
@@ -161,22 +174,22 @@ export default function AIAdvisor() {
             <div ref={messagesEndRef} />
           </div>
 
-          {/* Input */}
           <div className="border-t p-4">
             <div className="flex gap-2">
               <Textarea
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={event => setInput(event.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder="Sorunuzu yazın..."
                 className="min-h-[44px] max-h-32 resize-none rounded-xl"
                 rows={1}
               />
               <Button
-                onClick={() => sendMessage(input)}
+                onClick={() => void sendMessage(input)}
                 disabled={!input.trim() || isLoading}
                 size="icon"
                 className="rounded-xl h-11 w-11 shrink-0"
+                aria-label="Mesaj gönder"
               >
                 <Send className="h-4 w-4" />
               </Button>
