@@ -1,3 +1,5 @@
+import { randomInt } from "crypto";
+import { TRPCError } from "@trpc/server";
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
@@ -7,7 +9,6 @@ import { invokeLLM } from "./_core/llm";
 import { getDb } from "./db";
 import { fabrics, orders, measurements, dealers, users } from "../drizzle/schema";
 import { eq, desc } from "drizzle-orm";
-import { nanoid } from "nanoid";
 import { demoOrders, fallbackDealers, fallbackFabrics } from "./sampleData";
 
 export const appRouter = router({
@@ -21,7 +22,6 @@ export const appRouter = router({
     }),
   }),
 
-  // AI Chat & Color Advisor
   ai: router({
     chat: publicProcedure
       .input(z.object({
@@ -83,7 +83,8 @@ Kısa, net ve yardımcı yanıtlar ver. Markdown formatı kullan.`;
           const rawContent = response.choices?.[0]?.message?.content || "Üzgünüm, şu anda yanıt veremiyorum.";
           const content = typeof rawContent === "string" ? rawContent : "Üzgünüm, şu anda yanıt veremiyorum.";
           return { content };
-        } catch {
+        } catch (error) {
+          console.error("[AI] Chat request failed:", error);
           const lastQuestion = input.messages.at(-1)?.content || "";
           return {
             content:
@@ -154,7 +155,6 @@ JSON formatında yanıt ver:
       }),
   }),
 
-  // Fabrics
   fabrics: router({
     list: publicProcedure.query(async () => {
       const db = await getDb();
@@ -167,13 +167,12 @@ JSON formatında yanıt ver:
       .input(z.object({ slug: z.string() }))
       .query(async ({ input }) => {
         const db = await getDb();
-        if (!db) return fallbackFabrics.find((fabric) => fabric.slug === input.slug) || null;
+        if (!db) return fallbackFabrics.find(fabric => fabric.slug === input.slug) || null;
         const result = await db.select().from(fabrics).where(eq(fabrics.slug, input.slug)).limit(1);
-        return result[0] || fallbackFabrics.find((fabric) => fabric.slug === input.slug) || null;
+        return result[0] || fallbackFabrics.find(fabric => fabric.slug === input.slug) || null;
       }),
   }),
 
-  // Orders
   orders: router({
     create: publicProcedure
       .input(z.object({
@@ -196,10 +195,33 @@ JSON formatında yanıt ver:
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
 
-        const orderNumber = `PLD-${nanoid(8).toUpperCase()}`;
+        let orderNumber = "";
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          const candidate = randomInt(10000, 100000).toString();
+          if (!db) {
+            if (!demoOrders.some(order => order.orderNumber === candidate)) {
+              orderNumber = candidate;
+              break;
+            }
+          } else {
+            const existing = await db
+              .select({ id: orders.id })
+              .from(orders)
+              .where(eq(orders.orderNumber, candidate))
+              .limit(1);
+            if (existing.length === 0) {
+              orderNumber = candidate;
+              break;
+            }
+          }
+        }
+        if (!orderNumber) {
+          throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Sipariş numarası üretilemedi." });
+        }
+
         const isFreeShipping = input.totalPrice >= 3000;
         const orderValues = {
-          userId: ctx.user?.id ?? 0,
+          userId: ctx.user?.id && ctx.user.id > 0 ? ctx.user.id : 0,
           orderNumber,
           fabricId: input.fabricId,
           fabricName: input.fabricName,
@@ -233,23 +255,66 @@ JSON formatında yanıt ver:
         }
 
         await db.insert(orders).values(orderValues);
-
         return { orderNumber, demoMode: false };
       }),
 
     myOrders: protectedProcedure.query(async ({ ctx }) => {
       const db = await getDb();
-      if (!db) return [];
-      const result = await db
+      if (!db) {
+        return demoOrders
+          .filter(order => Number(order.userId) === ctx.user.id)
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      }
+      return db
         .select()
         .from(orders)
         .where(eq(orders.userId, ctx.user.id))
         .orderBy(desc(orders.createdAt));
-      return result;
     }),
+
+    cancel: protectedProcedure
+      .input(z.object({ id: z.number().int().positive() }))
+      .mutation(async ({ ctx, input }) => {
+        const db = await getDb();
+        const now = Date.now();
+        const cancelWindowMs = 24 * 60 * 60 * 1000;
+
+        if (!db) {
+          const order = demoOrders.find(item => Number(item.id) === input.id);
+          if (!order || Number(order.userId) !== ctx.user.id) {
+            throw new TRPCError({ code: "NOT_FOUND", message: "Sipariş bulunamadı." });
+          }
+          if (now - new Date(order.createdAt).getTime() > cancelWindowMs) {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "24 saatlik iptal süresi dolmuş." });
+          }
+          if (order.status === "cancelled" || order.status === "delivered") {
+            throw new TRPCError({ code: "BAD_REQUEST", message: "Bu sipariş iptal edilemez." });
+          }
+          order.status = "cancelled";
+          order.updatedAt = new Date();
+          return { success: true };
+        }
+
+        const result = await db.select().from(orders).where(eq(orders.id, input.id)).limit(1);
+        const order = result[0];
+        if (!order || order.userId !== ctx.user.id) {
+          throw new TRPCError({ code: "NOT_FOUND", message: "Sipariş bulunamadı." });
+        }
+        if (now - new Date(order.createdAt).getTime() > cancelWindowMs) {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "24 saatlik iptal süresi dolmuş." });
+        }
+        if (order.status === "cancelled" || order.status === "delivered") {
+          throw new TRPCError({ code: "BAD_REQUEST", message: "Bu sipariş iptal edilemez." });
+        }
+
+        await db
+          .update(orders)
+          .set({ status: "cancelled", updatedAt: new Date() })
+          .where(eq(orders.id, input.id));
+        return { success: true };
+      }),
   }),
 
-  // Dealers
   dealers: router({
     list: publicProcedure.query(async () => {
       const db = await getDb();
@@ -259,7 +324,6 @@ JSON formatında yanıt ver:
     }),
   }),
 
-  // Profile
   profile: router({
     update: protectedProcedure
       .input(z.object({
@@ -271,6 +335,7 @@ JSON formatında yanıt ver:
       .mutation(async ({ ctx, input }) => {
         const db = await getDb();
         if (!db) throw new Error("Database not available");
+        if (ctx.user.id <= 0) return { success: true };
         const updateSet: Record<string, unknown> = {};
         if (input.name !== undefined) updateSet.name = input.name;
         if (input.phone !== undefined) updateSet.phone = input.phone;
@@ -283,7 +348,6 @@ JSON formatında yanıt ver:
       }),
   }),
 
-  // Measurements
   measurements: router({
     save: protectedProcedure
       .input(z.object({
