@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import NotificationSettings from "@/components/NotificationSettings";
 import { AlertTriangle, ArrowLeft, Download, KeyRound, ShieldCheck, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -114,7 +115,7 @@ export default function AccountSettings() {
   return (
     <div className="container max-w-3xl py-8 sm:py-12">
       <Link href="/hesabim"><Button variant="ghost" className="mb-5 gap-2"><ArrowLeft className="h-4 w-4" />Hesabıma Dön</Button></Link>
-      <div className="mb-8"><p className="text-sm font-semibold text-primary">RGNFIX Müşteri Hesabı</p><h1 className="mt-2 text-3xl font-serif font-bold">Hesap Ayarları</h1><p className="mt-2 text-muted-foreground">Güvenlik, veri indirme ve hesap silme işlemlerini buradan yönetin.</p></div>
+      <div className="mb-8"><p className="text-sm font-semibold text-primary">RGNFIX Müşteri Hesabı</p><h1 className="mt-2 text-3xl font-serif font-bold">Hesap Ayarları</h1><p className="mt-2 text-muted-foreground">Güvenlik, bildirim, veri indirme ve hesap silme işlemlerini buradan yönetin.</p></div>
 
       <div className="space-y-6">
         <Card>
@@ -130,6 +131,8 @@ export default function AccountSettings() {
             </form>
           </CardContent>
         </Card>
+
+        <NotificationSettings />
 
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Download className="h-5 w-5" />Verilerimi İndir</CardTitle></CardHeader>
