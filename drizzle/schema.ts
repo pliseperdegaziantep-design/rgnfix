@@ -1,8 +1,5 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json } from "drizzle-orm/mysql-core";
 
-/**
- * Core user table backing auth flow.
- */
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
   openId: varchar("openId", { length: 64 }).notNull().unique(),
@@ -29,9 +26,6 @@ export const users = mysqlTable("users", {
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 
-/**
- * Fabric types for plise blinds
- */
 export const fabrics = mysqlTable("fabrics", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 100 }).notNull(),
@@ -55,9 +49,6 @@ export const fabrics = mysqlTable("fabrics", {
 export type Fabric = typeof fabrics.$inferSelect;
 export type InsertFabric = typeof fabrics.$inferInsert;
 
-/**
- * Orders
- */
 export const orders = mysqlTable("orders", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
@@ -81,6 +72,8 @@ export const orders = mysqlTable("orders", {
   customerAddress: text("customerAddress"),
   customerCity: varchar("customerCity", { length: 100 }),
   customerNote: text("customerNote"),
+  measurementRecordingUrl: text("measurementRecordingUrl"),
+  measurementRecordingConsentAt: timestamp("measurementRecordingConsentAt"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 });
@@ -88,9 +81,6 @@ export const orders = mysqlTable("orders", {
 export type Order = typeof orders.$inferSelect;
 export type InsertOrder = typeof orders.$inferInsert;
 
-/**
- * Dealers / Bayiler
- */
 export const dealers = mysqlTable("dealers", {
   id: int("id").autoincrement().primaryKey(),
   name: varchar("name", { length: 200 }).notNull(),
@@ -109,9 +99,6 @@ export const dealers = mysqlTable("dealers", {
 export type Dealer = typeof dealers.$inferSelect;
 export type InsertDealer = typeof dealers.$inferInsert;
 
-/**
- * Measurements saved by users
- */
 export const measurements = mysqlTable("measurements", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId"),
@@ -128,9 +115,6 @@ export const measurements = mysqlTable("measurements", {
 export type Measurement = typeof measurements.$inferSelect;
 export type InsertMeasurement = typeof measurements.$inferInsert;
 
-/**
- * Native/web push notification device tokens.
- */
 export const pushTokens = mysqlTable("pushTokens", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
