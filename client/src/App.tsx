@@ -16,6 +16,7 @@ const MeasurementAssistant = lazy(() => import("./pages/MeasurementAssistant"));
 const PhotoSupport = lazy(() => import("./pages/PhotoSupport"));
 const PriceCalculator = lazy(() => import("./pages/PriceCalculator"));
 const FabricComparison = lazy(() => import("./pages/FabricComparison"));
+const InsectScreen = lazy(() => import("./pages/InsectScreen"));
 const ColorAdvisor = lazy(() => import("./pages/ColorAdvisor"));
 const MountingGuide = lazy(() => import("./pages/MountingGuide"));
 const OrderPage = lazy(() => import("./pages/OrderPage"));
@@ -45,6 +46,7 @@ function Router() {
       <Route path={"/olcu-fotografi"} component={PhotoSupport} />
       <Route path={"/fiyat-hesapla"} component={PriceCalculator} />
       <Route path={"/kumas-karsilastirma"} component={FabricComparison} />
+      <Route path={"/sineklik"} component={InsectScreen} />
       <Route path={"/renk-danismani"} component={ColorAdvisor} />
       <Route path={"/montaj-rehberi"} component={MountingGuide} />
       <Route path={"/siparis"} component={OrderPage} />
