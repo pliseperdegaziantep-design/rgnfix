@@ -22,9 +22,7 @@ export interface MeasurementPanelDraft {
   id: string;
   measuredWidth: string;
   measuredHeight: string;
-  heightCheck: string;
   isOpeningPanel: boolean;
-  duplicateConfirmed: boolean;
   completed: boolean;
 }
 
@@ -46,6 +44,7 @@ export interface MeasurementTransferPayload {
   applicationArea: ApplicationArea;
   mountType: MountingType;
   caseType: string;
+  recordingUrl?: string;
   items: Array<{
     id: string;
     label: string;
@@ -94,55 +93,31 @@ export const MEASUREMENT_RULES = {
   aluminyum_surgulu_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
 } as const;
 
-export const CAM_BALCONY_CONFIRMATIONS = [
-  "Ölçüleri çelik metreyle aldım.",
-  "Ölçüleri santimetre olarak aynen yazdım; varsa küsuratı virgülle girdim.",
-  "Ölçüleri aşağı veya yukarı yuvarlamadım.",
-  "Bütün camları aynı görünse bile ayrı ayrı ölçtüm.",
-  "En ölçülerini cam içinden cam içine aldım.",
-  "Boy ölçülerini cam içinden cam içine net aldım.",
-  "Açılır olan bütün kanatları ayrı ayrı işaretledim.",
-  "Açılır kanatlar için kendim pay düşmedim.",
-  "Girdiğim ölçüleri çelik metreden okuyarak yazdım.",
-] as const;
+const CM_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 
-export const PVC_ALUMINUM_CONFIRMATIONS = [
-  "Ölçüleri çelik metreyle aldım.",
-  "En ve boy ölçülerini cam içinden cam içine aldım.",
-  "Ölçüleri santimetre olarak aynen yazdım; varsa küsuratı virgülle girdim.",
-  "Herhangi bir pay düşmedim.",
-  "Kancalı montaj seçmediğimi onaylıyorum.",
-] as const;
-
-const CM_PATTERN = /^\d+(?:[.,]\d)?$/;
-
-/**
- * Santimetre girişini doğrular. Tam sayı veya bir ondalık basamak kabul edilir.
- * Değer sessizce değiştirilmez veya fiyat yuvarlamasına tabi tutulmaz.
- */
 export function normalizeCmInput(value: unknown): number {
   const raw = String(value ?? "").trim();
   if (!CM_PATTERN.test(raw)) {
-    throw new Error("Ölçüyü santimetre olarak tam sayı veya en fazla bir küsurat hanesiyle girin. Örnek: 56 veya 56,4");
+    throw new Error("Ölçüyü santimetre olarak girin. Örnek: 56 veya 56,4");
   }
 
   const measurement = Number(raw.replace(",", "."));
   if (!Number.isFinite(measurement) || measurement <= 0) {
-    throw new Error("Geçerli ve sıfırdan büyük bir santimetre ölçüsü girin.");
+    throw new Error("Sıfırdan büyük geçerli bir ölçü girin.");
   }
   return measurement;
 }
 
-export function cmToInternalMm(valueCm: number): number {
-  return Math.round(valueCm * 10);
+export function cmToInternalUnits(valueCm: number): number {
+  return Math.round(valueCm * 100);
 }
 
-export function internalMmToCm(valueMm: number): number {
-  return Number((valueMm / 10).toFixed(1));
+export function internalUnitsToCm(valueUnits: number): number {
+  return Number((valueUnits / 100).toFixed(2));
 }
 
 export function formatCm(valueCm: number): string {
-  const formatted = Number.isInteger(valueCm) ? valueCm.toFixed(0) : valueCm.toFixed(1);
+  const formatted = valueCm.toFixed(2).replace(/0+$/, "").replace(/[.,]$/, "");
   return formatted.replace(".", ",");
 }
 
@@ -168,24 +143,24 @@ export function calculateProductionMeasurement({
     ? MEASUREMENT_RULES.cam_balkon[panelType]
     : MEASUREMENT_RULES[applicationArea];
 
-  const measuredWidthMm = cmToInternalMm(measuredWidthCm);
-  const measuredHeightMm = cmToInternalMm(measuredHeightCm);
-  const widthDeductionMm = cmToInternalMm(rule.widthDeductionCm);
-  const heightDeductionMm = cmToInternalMm(rule.heightDeductionCm);
-  const productionWidthMm = measuredWidthMm - widthDeductionMm;
-  const productionHeightMm = measuredHeightMm - heightDeductionMm;
+  const measuredWidthUnits = cmToInternalUnits(measuredWidthCm);
+  const measuredHeightUnits = cmToInternalUnits(measuredHeightCm);
+  const widthDeductionUnits = cmToInternalUnits(rule.widthDeductionCm);
+  const heightDeductionUnits = cmToInternalUnits(rule.heightDeductionCm);
+  const productionWidthUnits = measuredWidthUnits - widthDeductionUnits;
+  const productionHeightUnits = measuredHeightUnits - heightDeductionUnits;
 
-  if (productionWidthMm <= 0 || productionHeightMm <= 0) {
-    throw new Error("Hesaplanan üretim ölçüsü geçersizdir. Ölçüyü yeniden kontrol edin.");
+  if (productionWidthUnits <= 0 || productionHeightUnits <= 0) {
+    throw new Error("Hesaplanan üretim ölçüsü geçersiz. Ölçüyü yeniden kontrol edin.");
   }
 
   return {
-    measuredWidthCm: internalMmToCm(measuredWidthMm),
-    measuredHeightCm: internalMmToCm(measuredHeightMm),
-    widthDeductionCm: internalMmToCm(widthDeductionMm),
-    heightDeductionCm: internalMmToCm(heightDeductionMm),
-    productionWidthCm: internalMmToCm(productionWidthMm),
-    productionHeightCm: internalMmToCm(productionHeightMm),
+    measuredWidthCm: internalUnitsToCm(measuredWidthUnits),
+    measuredHeightCm: internalUnitsToCm(measuredHeightUnits),
+    widthDeductionCm: internalUnitsToCm(widthDeductionUnits),
+    heightDeductionCm: internalUnitsToCm(heightDeductionUnits),
+    productionWidthCm: internalUnitsToCm(productionWidthUnits),
+    productionHeightCm: internalUnitsToCm(productionHeightUnits),
   };
 }
 
@@ -196,12 +171,6 @@ export function calculatePanel(
 ): CalculatedMeasurement {
   const measuredWidthCm = normalizeCmInput(panel.measuredWidth);
   const measuredHeightCm = normalizeCmInput(panel.measuredHeight);
-  const checkedHeightCm = normalizeCmInput(panel.heightCheck);
-
-  if (cmToInternalMm(measuredHeightCm) !== cmToInternalMm(checkedHeightCm)) {
-    throw new Error("İki boy ölçümü farklı çıktı. Çelik metreyi düz tutarak boyu bir kez daha ölçelim.");
-  }
-
   const panelType: PanelType = applicationArea === "cam_balkon" && panel.isOpeningPanel
     ? "opening_panel"
     : "normal_panel";
@@ -220,25 +189,6 @@ export function calculatePanel(
     panelType,
     ...result,
   };
-}
-
-export function measurementKey(width: string, height: string): string | null {
-  try {
-    return `${cmToInternalMm(normalizeCmInput(width))}x${cmToInternalMm(normalizeCmInput(height))}`;
-  } catch {
-    return null;
-  }
-}
-
-export function hasDuplicateMeasurement(
-  panels: MeasurementPanelDraft[],
-  currentIndex: number,
-): boolean {
-  const current = panels[currentIndex];
-  if (!current) return false;
-  const key = measurementKey(current.measuredWidth, current.measuredHeight);
-  if (!key) return false;
-  return panels.some((panel, index) => index !== currentIndex && panel.completed && measurementKey(panel.measuredWidth, panel.measuredHeight) === key);
 }
 
 export function buildMeasurementText({
@@ -261,12 +211,11 @@ export function buildMeasurementText({
 
   measurements.forEach(measurement => {
     lines.push(measurement.label);
-    lines.push(`Ölçtüğüm net ölçü: ${formatCm(measurement.measuredWidthCm)} × ${formatCm(measurement.measuredHeightCm)} cm`);
-    lines.push(`Sistem üretim ölçüsü: ${formatCm(measurement.productionWidthCm)} × ${formatCm(measurement.productionHeightCm)} cm`);
+    lines.push(`Net cam ölçüsü: ${formatCm(measurement.measuredWidthCm)} × ${formatCm(measurement.measuredHeightCm)} cm`);
+    lines.push(`Üretim ölçüsü: ${formatCm(measurement.productionWidthCm)} × ${formatCm(measurement.productionHeightCm)} cm`);
     lines.push("");
   });
 
-  lines.push("Ölçü notumun ve fotoğrafımın kontrol edilmesini rica ediyorum.");
   return lines.join("\n");
 }
 
@@ -275,11 +224,13 @@ export function createTransferPayload({
   mountType,
   caseType,
   measurements,
+  recordingUrl,
 }: {
   applicationArea: ApplicationArea;
   mountType: MountingType;
   caseType: string;
   measurements: CalculatedMeasurement[];
+  recordingUrl?: string;
 }): MeasurementTransferPayload {
   return {
     source: "rgnfix-live-measurement",
@@ -287,6 +238,7 @@ export function createTransferPayload({
     applicationArea,
     mountType,
     caseType,
+    recordingUrl,
     items: measurements.map(measurement => ({
       id: String(measurement.index + 1),
       label: measurement.label,
