@@ -1,18 +1,23 @@
-type VoiceState = "idle" | "connecting" | "ready" | "speaking" | "error";
+type VoiceState = "idle" | "connecting" | "listening" | "speaking" | "muted" | "error";
 
 type VoiceStateListener = (state: VoiceState) => void;
+type TranscriptListener = (event: { role: "user" | "assistant"; text: string }) => void;
 
 export class RealtimeVoiceGuide {
   private peer: RTCPeerConnection | null = null;
   private channel: RTCDataChannel | null = null;
   private audio: HTMLAudioElement | null = null;
+  private microphoneStream: MediaStream | null = null;
   private connectionPromise: Promise<void> | null = null;
   private muted = false;
   private state: VoiceState = "idle";
   private listener?: VoiceStateListener;
+  private transcriptListener?: TranscriptListener;
+  private assistantTranscript = "";
 
-  constructor(listener?: VoiceStateListener) {
+  constructor(listener?: VoiceStateListener, transcriptListener?: TranscriptListener) {
     this.listener = listener;
+    this.transcriptListener = transcriptListener;
   }
 
   private setState(state: VoiceState) {
@@ -26,14 +31,23 @@ export class RealtimeVoiceGuide {
 
   setMuted(muted: boolean) {
     this.muted = muted;
+    this.microphoneStream?.getAudioTracks().forEach(track => {
+      track.enabled = !muted;
+    });
     if (this.audio) this.audio.muted = muted;
-    if (muted) this.cancel();
+    if (muted) {
+      this.cancel();
+      this.setState("muted");
+    } else if (this.channel?.readyState === "open") {
+      void this.audio?.play().catch(() => undefined);
+      this.setState("listening");
+    }
   }
 
   private async waitForIceGathering(peer: RTCPeerConnection) {
     if (peer.iceGatheringState === "complete") return;
     await new Promise<void>(resolve => {
-      const timeout = window.setTimeout(resolve, 2500);
+      const timeout = window.setTimeout(resolve, 3000);
       const handleChange = () => {
         if (peer.iceGatheringState !== "complete") return;
         window.clearTimeout(timeout);
@@ -44,36 +58,92 @@ export class RealtimeVoiceGuide {
     });
   }
 
+  private handleServerEvent(rawEvent: MessageEvent) {
+    try {
+      const payload = JSON.parse(String(rawEvent.data)) as {
+        type?: string;
+        transcript?: string;
+        delta?: string;
+        error?: { message?: string };
+        response?: { status?: string };
+      };
+
+      if (payload.type === "input_audio_buffer.speech_started") {
+        this.setState(this.muted ? "muted" : "listening");
+      }
+      if (payload.type === "response.created") {
+        this.assistantTranscript = "";
+        this.setState(this.muted ? "muted" : "speaking");
+      }
+      if (payload.type === "response.output_audio_transcript.delta" && payload.delta) {
+        this.assistantTranscript += payload.delta;
+      }
+      if (payload.type === "response.output_audio_transcript.done") {
+        const text = (payload.transcript || this.assistantTranscript).trim();
+        if (text) this.transcriptListener?.({ role: "assistant", text });
+        this.assistantTranscript = "";
+      }
+      if (payload.type === "conversation.item.input_audio_transcription.completed") {
+        const text = payload.transcript?.trim();
+        if (text) this.transcriptListener?.({ role: "user", text });
+      }
+      if (payload.type === "response.done") {
+        this.setState(this.muted ? "muted" : "listening");
+      }
+      if (payload.type === "error") {
+        console.error("[Realtime Voice] OpenAI error:", payload.error?.message || payload);
+        this.setState("error");
+      }
+    } catch {
+      // Ignore non-JSON WebRTC events.
+    }
+  }
+
   async connect() {
     if (this.peer && this.channel?.readyState === "open") return;
     if (this.connectionPromise) return this.connectionPromise;
 
     this.connectionPromise = (async () => {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Bu cihaz canlı mikrofon görüşmesini desteklemiyor.");
+      }
+
       this.setState("connecting");
+      const microphoneStream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          channelCount: 1,
+        },
+        video: false,
+      });
+      microphoneStream.getAudioTracks().forEach(track => {
+        track.enabled = !this.muted;
+      });
+
       const peer = new RTCPeerConnection();
-      const audio = new Audio();
+      microphoneStream.getTracks().forEach(track => peer.addTrack(track, microphoneStream));
+
+      const audio = document.createElement("audio");
       audio.autoplay = true;
+      audio.controls = false;
       audio.muted = this.muted;
+      audio.setAttribute("playsinline", "true");
+      audio.style.display = "none";
+      document.body.appendChild(audio);
+
       peer.ontrack = event => {
         audio.srcObject = event.streams[0] ?? new MediaStream([event.track]);
-        void audio.play().catch(() => undefined);
+        if (!this.muted) void audio.play().catch(() => undefined);
       };
-      peer.addTransceiver("audio", { direction: "recvonly" });
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === "connected") this.setState(this.muted ? "muted" : "listening");
+        if (["failed", "closed", "disconnected"].includes(peer.connectionState)) this.setState("error");
+      };
 
       const channel = peer.createDataChannel("oai-events");
-      channel.addEventListener("message", event => {
-        try {
-          const payload = JSON.parse(String(event.data)) as { type?: string; error?: { message?: string } };
-          if (payload.type === "response.created") this.setState("speaking");
-          if (payload.type === "response.done" || payload.type === "response.cancelled") this.setState("ready");
-          if (payload.type === "error") {
-            console.error("[Realtime Voice] OpenAI error:", payload.error?.message || payload);
-            this.setState("error");
-          }
-        } catch {
-          // Ignore non-JSON WebRTC events.
-        }
-      });
+      channel.addEventListener("message", event => this.handleServerEvent(event));
 
       const offer = await peer.createOffer();
       await peer.setLocalDescription(offer);
@@ -99,7 +169,7 @@ export class RealtimeVoiceGuide {
           resolve();
           return;
         }
-        const timeout = window.setTimeout(() => reject(new Error("Canlı ses bağlantısı zaman aşımına uğradı.")), 12_000);
+        const timeout = window.setTimeout(() => reject(new Error("Canlı ses bağlantısı zaman aşımına uğradı.")), 15_000);
         channel.addEventListener("open", () => {
           window.clearTimeout(timeout);
           resolve();
@@ -113,7 +183,8 @@ export class RealtimeVoiceGuide {
       this.peer = peer;
       this.channel = channel;
       this.audio = audio;
-      this.setState("ready");
+      this.microphoneStream = microphoneStream;
+      this.setState(this.muted ? "muted" : "listening");
     })().catch(error => {
       console.error("[Realtime Voice] Connection failed:", error);
       this.disconnect();
@@ -136,9 +207,10 @@ export class RealtimeVoiceGuide {
     this.channel.send(JSON.stringify({
       type: "response.create",
       response: {
-        conversation: "none",
+        conversation: "auto",
         output_modalities: ["audio"],
-        instructions: `Türkçe olarak yalnızca aşağıdaki yönlendirmeyi bir kez; dinamik, akıcı, sıcak ve kadın tınısına yakın bir sesle söyle. Ek cümle kurma ve tekrar etme: ${cleaned}`,
+        max_output_tokens: 160,
+        instructions: `Müşteriye yalnızca şu ölçü adımını bir kez, kısa ve doğal şekilde söyle. Sonra müşterinin soru sormasını bekle. Tekrar etme: ${cleaned}`,
       },
     }));
   }
@@ -146,25 +218,25 @@ export class RealtimeVoiceGuide {
   cancel() {
     if (this.state === "speaking" && this.channel?.readyState === "open") {
       this.channel.send(JSON.stringify({ type: "response.cancel" }));
+      this.channel.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
     }
-    if (this.audio) {
-      this.audio.pause();
-      this.audio.currentTime = 0;
-    }
-    if (this.state !== "error") this.setState(this.channel?.readyState === "open" ? "ready" : "idle");
+    if (this.state !== "error") this.setState(this.muted ? "muted" : this.channel?.readyState === "open" ? "listening" : "idle");
   }
 
   disconnect() {
     this.channel?.close();
+    this.microphoneStream?.getTracks().forEach(track => track.stop());
     this.peer?.getReceivers().forEach(receiver => receiver.track?.stop());
     this.peer?.close();
     if (this.audio) {
       this.audio.pause();
       this.audio.srcObject = null;
+      this.audio.remove();
     }
     this.channel = null;
     this.peer = null;
     this.audio = null;
+    this.microphoneStream = null;
     this.connectionPromise = null;
     this.setState("idle");
   }
