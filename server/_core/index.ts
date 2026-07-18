@@ -6,11 +6,14 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerStorageProxy } from "./storageProxy";
 import { registerLocalAuthRoutes } from "./localAuth";
 import { registerAdminRoutes } from "./adminRoutes";
+import { ensureAppSchema } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 
 async function startServer() {
+  await ensureAppSchema();
+
   const app = express();
   const server = createServer(app);
 
