@@ -19,6 +19,7 @@ import {
   ShoppingCart,
   MapPin,
   LayoutDashboard,
+  Settings,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
@@ -70,10 +71,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
           <div className="flex items-center gap-2">
             <div className="hidden xl:flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1.5 text-[10px] font-semibold text-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-secondary animate-pulse" />
-              AI ÇEVRİMİÇİ
+              <span className="h-1.5 w-1.5 rounded-full bg-secondary" />
+              DİJİTAL PLATFORM
             </div>
-            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-lg">
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-lg" aria-label="Tema değiştir">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
 
@@ -85,6 +86,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="max-w-28 truncate">{accountLabel}</span>
                   </Button>
                 </Link>
+                {user?.role === "user" && (
+                  <Link href="/hesap-ayarlari">
+                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Hesap ayarları">
+                      <Settings className="h-4 w-4" />
+                    </Button>
+                  </Link>
+                )}
                 <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg" aria-label="Çıkış yap">
                   <LogOut className="h-4 w-4" />
                 </Button>
@@ -97,7 +105,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden rounded-lg">
+                <Button variant="ghost" size="icon" className="lg:hidden rounded-lg" aria-label="Menüyü aç">
                   <Menu className="h-5 w-5" />
                 </Button>
               </SheetTrigger>
@@ -107,11 +115,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="font-serif text-lg font-semibold">
                       <span className="font-black tracking-tight text-primary">RGN<span className="text-secondary">FIX</span></span>
                     </span>
-                    <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}>
+                    <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat">
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                  <nav className="flex-1 p-4 space-y-1">
+                  <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navItems.map(item => {
                       const Icon = item.icon;
                       return (
@@ -139,6 +147,14 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                             {accountLabel}
                           </Button>
                         </Link>
+                        {user?.role === "user" && (
+                          <Link href="/hesap-ayarlari" onClick={() => setMobileOpen(false)}>
+                            <Button variant="outline" className="w-full justify-start gap-2">
+                              <Settings className="h-4 w-4" />
+                              Hesap Ayarları
+                            </Button>
+                          </Link>
+                        )}
                         <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}>
                           <LogOut className="h-4 w-4" />
                           Çıkış Yap
@@ -161,7 +177,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
       <footer className="border-t border-border/50 bg-muted/30">
         <div className="container py-12">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <div className="flex items-center gap-2"><BrandLogo className="h-12" /></div>
               <p className="text-sm text-muted-foreground leading-relaxed">
@@ -184,6 +200,16 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link href="/montaj-rehberi"><span className="block hover:text-foreground transition-colors cursor-pointer">Montaj Rehberi</span></Link>
                 <Link href="/renk-danismani"><span className="block hover:text-foreground transition-colors cursor-pointer">Renk Danışmanı</span></Link>
                 <Link href="/bayi-haritasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Bayi Bul</span></Link>
+              </div>
+            </div>
+            <div className="space-y-3">
+              <h4 className="font-semibold text-sm">Yasal ve Destek</h4>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <Link href="/gizlilik-politikasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Gizlilik Politikası</span></Link>
+                <Link href="/kullanim-kosullari"><span className="block hover:text-foreground transition-colors cursor-pointer">Kullanım Koşulları</span></Link>
+                <Link href="/kvkk-aydinlatma"><span className="block hover:text-foreground transition-colors cursor-pointer">KVKK Aydınlatma</span></Link>
+                <Link href="/hesap-silme"><span className="block hover:text-foreground transition-colors cursor-pointer">Hesap Silme</span></Link>
+                <Link href="/destek"><span className="block hover:text-foreground transition-colors cursor-pointer">Destek Merkezi</span></Link>
               </div>
             </div>
             <div className="space-y-3">
