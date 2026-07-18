@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from "express";
-import { randomBytes, scrypt as scryptCallback, timingSafeEqual } from "crypto";
+import { createHash, randomBytes, scrypt as scryptCallback, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { SignJWT, jwtVerify } from "jose";
 import { parse as parseCookieHeader } from "cookie";
@@ -9,10 +9,13 @@ import { COOKIE_NAME, ONE_YEAR_MS } from "@shared/const";
 import { measurements, orders, users, type User } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { getSessionCookieOptions } from "./cookies";
+import { appBaseUrl, emailShell, mailConfigured, sendTransactionalEmail } from "./mailer";
 
 const LOCAL_ADMIN_OPEN_ID = "local-admin";
 const MAX_ATTEMPTS = 5;
 const WINDOW_MS = 15 * 60 * 1000;
+const TOKEN_LIFETIME_MS = 60 * 60 * 1000;
+const VERIFICATION_LIFETIME_MS = 24 * 60 * 60 * 1000;
 const attempts = new Map<string, { count: number; resetAt: number }>();
 const scryptAsync = promisify(scryptCallback) as (
   password: string,
@@ -72,6 +75,14 @@ function normalizeEmail(value: unknown) {
   return typeof value === "string" ? value.trim().toLowerCase() : "";
 }
 
+function createActionToken() {
+  return randomBytes(32).toString("hex");
+}
+
+function hashActionToken(token: string) {
+  return createHash("sha256").update(token).digest("hex");
+}
+
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const derived = await scryptAsync(password, salt, 64);
@@ -100,6 +111,13 @@ function adminUser(): User {
     name: setting("ADMIN_NAME") || "RGNFIX Yönetici",
     email: setting("ADMIN_EMAIL"),
     passwordHash: null,
+    emailVerifiedAt: now,
+    verificationTokenHash: null,
+    verificationTokenExpiresAt: null,
+    resetTokenHash: null,
+    resetTokenExpiresAt: null,
+    termsAcceptedAt: now,
+    privacyAcceptedAt: now,
     phone: null,
     address: null,
     city: null,
@@ -137,6 +155,34 @@ function clearSessionCookie(req: Request, res: Response) {
   res.clearCookie(COOKIE_NAME, { ...getSessionCookieOptions(req), maxAge: -1 });
 }
 
+async function sendVerification(email: string, name: string | null, token: string) {
+  const url = `${appBaseUrl()}/eposta-dogrula?token=${encodeURIComponent(token)}`;
+  return sendTransactionalEmail({
+    to: email,
+    subject: "RGNFIX e-posta adresinizi doğrulayın",
+    html: emailShell(
+      "E-posta adresinizi doğrulayın",
+      `<p>Merhaba ${name || ""}, RGNFIX hesabınızı kullanmaya başlamak için e-posta adresinizi doğrulayın.</p><p>Bu bağlantı 24 saat geçerlidir.</p>`,
+      "E-postamı Doğrula",
+      url
+    ),
+  });
+}
+
+async function sendPasswordReset(email: string, name: string | null, token: string) {
+  const url = `${appBaseUrl()}/sifre-yenile?token=${encodeURIComponent(token)}`;
+  return sendTransactionalEmail({
+    to: email,
+    subject: "RGNFIX şifre yenileme",
+    html: emailShell(
+      "Şifrenizi yenileyin",
+      `<p>Merhaba ${name || ""}, RGNFIX hesabınız için şifre yenileme talebi aldık.</p><p>Bu bağlantı 1 saat geçerlidir.</p>`,
+      "Yeni Şifre Belirle",
+      url
+    ),
+  });
+}
+
 export async function getLocalAuthUser(req: Request): Promise<User | null> {
   if (!jwtConfigured()) return null;
   const token = parseCookieHeader(req.headers.cookie ?? "")[COOKIE_NAME];
@@ -153,7 +199,14 @@ export async function getLocalAuthUser(req: Request): Promise<User | null> {
     if (!db) return null;
     const result = await db.select().from(users).where(eq(users.id, userId)).limit(1);
     const user = result[0];
-    return user ? { ...user, passwordHash: null } : null;
+    return user
+      ? {
+          ...user,
+          passwordHash: null,
+          verificationTokenHash: null,
+          resetTokenHash: null,
+        }
+      : null;
   } catch {
     return null;
   }
@@ -171,7 +224,11 @@ async function requireCustomer(req: Request, res: Response) {
 export function registerLocalAuthRoutes(app: Express) {
   app.get("/api/local-auth/status", async (_req, res) => {
     const db = await getDb();
-    res.json({ configured: jwtConfigured(), registrationAvailable: Boolean(db && jwtConfigured()) });
+    res.json({
+      configured: jwtConfigured(),
+      registrationAvailable: Boolean(db && jwtConfigured()),
+      emailVerificationEnabled: mailConfigured(),
+    });
   });
 
   app.post("/api/local-auth/register", async (req, res) => {
@@ -189,6 +246,8 @@ export function registerLocalAuthRoutes(app: Express) {
       const email = normalizeEmail(req.body?.email);
       const phone = typeof req.body?.phone === "string" ? req.body.phone.trim() : "";
       const password = typeof req.body?.password === "string" ? req.body.password : "";
+      const termsAccepted = req.body?.termsAccepted === true;
+      const privacyAccepted = req.body?.privacyAccepted === true;
 
       if (name.length < 2) {
         res.status(400).json({ error: "Ad soyad en az 2 karakter olmalı." });
@@ -200,6 +259,10 @@ export function registerLocalAuthRoutes(app: Express) {
       }
       if (password.length < 8) {
         res.status(400).json({ error: "Şifre en az 8 karakter olmalı." });
+        return;
+      }
+      if (!termsAccepted || !privacyAccepted) {
+        res.status(400).json({ error: "Hesap oluşturmak için Kullanım Koşulları ve Gizlilik Politikası kabul edilmelidir." });
         return;
       }
       if (adminConfigured() && email === setting("ADMIN_EMAIL").toLowerCase()) {
@@ -219,6 +282,9 @@ export function registerLocalAuthRoutes(app: Express) {
         return;
       }
 
+      const now = new Date();
+      const verificationRequired = mailConfigured();
+      const verificationToken = verificationRequired ? createActionToken() : null;
       const openId = `local-${nanoid(24)}`;
       await db.insert(users).values({
         openId,
@@ -226,21 +292,46 @@ export function registerLocalAuthRoutes(app: Express) {
         email,
         phone: phone || null,
         passwordHash: await hashPassword(password),
+        emailVerifiedAt: verificationRequired ? null : now,
+        verificationTokenHash: verificationToken ? hashActionToken(verificationToken) : null,
+        verificationTokenExpiresAt: verificationToken ? new Date(Date.now() + VERIFICATION_LIFETIME_MS) : null,
+        termsAcceptedAt: now,
+        privacyAcceptedAt: now,
         loginMethod: "email-password",
         role: "user",
-        lastSignedIn: new Date(),
+        lastSignedIn: now,
       });
 
       const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-      const user = result[0];
+      let user = result[0];
       if (!user) {
         res.status(500).json({ error: "Hesap oluşturuldu ancak oturum açılamadı." });
         return;
       }
 
+      if (verificationToken) {
+        try {
+          await sendVerification(email, name, verificationToken);
+          clearFailures(req);
+          res.status(201).json({ success: true, role: user.role, verificationRequired: true });
+          return;
+        } catch (error) {
+          console.error("[Auth] Verification email failed; enabling account temporarily:", error);
+          await db
+            .update(users)
+            .set({
+              emailVerifiedAt: now,
+              verificationTokenHash: null,
+              verificationTokenExpiresAt: null,
+            })
+            .where(eq(users.id, user.id));
+          user = { ...user, emailVerifiedAt: now, verificationTokenHash: null, verificationTokenExpiresAt: null };
+        }
+      }
+
       clearFailures(req);
       setSessionCookie(req, res, await createToken(user));
-      res.status(201).json({ success: true, role: user.role });
+      res.status(201).json({ success: true, role: user.role, verificationRequired: false });
     } catch (error) {
       console.error("[Auth] Registration failed:", error);
       res.status(500).json({ error: "Kayıt işlemi tamamlanamadı." });
@@ -288,6 +379,13 @@ export function registerLocalAuthRoutes(app: Express) {
         res.status(401).json({ error: "E-posta veya şifre hatalı." });
         return;
       }
+      if (mailConfigured() && !user.emailVerifiedAt) {
+        res.status(403).json({
+          error: "E-posta adresiniz henüz doğrulanmamış. Gelen kutunuzu kontrol edin.",
+          emailVerificationRequired: true,
+        });
+        return;
+      }
 
       clearFailures(req);
       const signedInAt = new Date();
@@ -297,6 +395,154 @@ export function registerLocalAuthRoutes(app: Express) {
     } catch (error) {
       console.error("[Auth] Login failed:", error);
       res.status(500).json({ error: "Giriş işlemi tamamlanamadı." });
+    }
+  });
+
+  app.post("/api/local-auth/resend-verification", async (req, res) => {
+    try {
+      const email = normalizeEmail(req.body?.email);
+      if (!mailConfigured()) {
+        res.json({ success: true });
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        res.json({ success: true });
+        return;
+      }
+      const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      const user = rows[0];
+      if (!user || user.emailVerifiedAt) {
+        res.json({ success: true });
+        return;
+      }
+
+      const token = createActionToken();
+      await db
+        .update(users)
+        .set({
+          verificationTokenHash: hashActionToken(token),
+          verificationTokenExpiresAt: new Date(Date.now() + VERIFICATION_LIFETIME_MS),
+        })
+        .where(eq(users.id, user.id));
+      await sendVerification(email, user.name, token);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Verification resend failed:", error);
+      res.json({ success: true });
+    }
+  });
+
+  app.get("/api/local-auth/verify-email", async (req, res) => {
+    try {
+      const token = typeof req.query.token === "string" ? req.query.token : "";
+      if (!token) {
+        res.status(400).json({ error: "Doğrulama bağlantısı geçersiz." });
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        res.status(503).json({ error: "Veritabanı bağlantısı bulunamadı." });
+        return;
+      }
+      const rows = await db
+        .select()
+        .from(users)
+        .where(eq(users.verificationTokenHash, hashActionToken(token)))
+        .limit(1);
+      const user = rows[0];
+      if (!user || !user.verificationTokenExpiresAt || user.verificationTokenExpiresAt.getTime() < Date.now()) {
+        res.status(400).json({ error: "Doğrulama bağlantısının süresi dolmuş veya bağlantı geçersiz." });
+        return;
+      }
+
+      await db
+        .update(users)
+        .set({
+          emailVerifiedAt: new Date(),
+          verificationTokenHash: null,
+          verificationTokenExpiresAt: null,
+        })
+        .where(eq(users.id, user.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Email verification failed:", error);
+      res.status(500).json({ error: "E-posta doğrulanamadı." });
+    }
+  });
+
+  app.post("/api/local-auth/forgot-password", async (req, res) => {
+    const generic = { success: true, message: "Bu e-posta kayıtlıysa şifre yenileme bağlantısı gönderildi." };
+    try {
+      const email = normalizeEmail(req.body?.email);
+      if (!mailConfigured()) {
+        res.status(503).json({ error: "Şifre yenileme e-posta hizmeti henüz aktif değil." });
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        res.json(generic);
+        return;
+      }
+      const rows = await db.select().from(users).where(eq(users.email, email)).limit(1);
+      const user = rows[0];
+      if (!user || !user.passwordHash) {
+        res.json(generic);
+        return;
+      }
+
+      const token = createActionToken();
+      await db
+        .update(users)
+        .set({
+          resetTokenHash: hashActionToken(token),
+          resetTokenExpiresAt: new Date(Date.now() + TOKEN_LIFETIME_MS),
+        })
+        .where(eq(users.id, user.id));
+      await sendPasswordReset(email, user.name, token);
+      res.json(generic);
+    } catch (error) {
+      console.error("[Auth] Forgot password failed:", error);
+      res.json(generic);
+    }
+  });
+
+  app.post("/api/local-auth/reset-password", async (req, res) => {
+    try {
+      const token = typeof req.body?.token === "string" ? req.body.token : "";
+      const newPassword = typeof req.body?.newPassword === "string" ? req.body.newPassword : "";
+      if (!token || newPassword.length < 8) {
+        res.status(400).json({ error: "Bağlantı geçersiz veya şifre en az 8 karakter değil." });
+        return;
+      }
+      const db = await getDb();
+      if (!db) {
+        res.status(503).json({ error: "Veritabanı bağlantısı bulunamadı." });
+        return;
+      }
+      const rows = await db
+        .select()
+        .from(users)
+        .where(eq(users.resetTokenHash, hashActionToken(token)))
+        .limit(1);
+      const user = rows[0];
+      if (!user || !user.resetTokenExpiresAt || user.resetTokenExpiresAt.getTime() < Date.now()) {
+        res.status(400).json({ error: "Şifre yenileme bağlantısının süresi dolmuş veya bağlantı geçersiz." });
+        return;
+      }
+
+      await db
+        .update(users)
+        .set({
+          passwordHash: await hashPassword(newPassword),
+          resetTokenHash: null,
+          resetTokenExpiresAt: null,
+        })
+        .where(eq(users.id, user.id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Auth] Password reset failed:", error);
+      res.status(500).json({ error: "Şifre yenilenemedi." });
     }
   });
 
@@ -352,7 +598,22 @@ export function registerLocalAuthRoutes(app: Express) {
         db.select().from(measurements).where(eq(measurements.userId, sessionUser.id)),
       ]);
       const account = accountRows[0];
-      const safeAccount = account ? { ...account, passwordHash: undefined } : null;
+      const safeAccount = account
+        ? {
+            id: account.id,
+            name: account.name,
+            email: account.email,
+            phone: account.phone,
+            address: account.address,
+            city: account.city,
+            emailVerifiedAt: account.emailVerifiedAt,
+            termsAcceptedAt: account.termsAcceptedAt,
+            privacyAcceptedAt: account.privacyAcceptedAt,
+            createdAt: account.createdAt,
+            updatedAt: account.updatedAt,
+            lastSignedIn: account.lastSignedIn,
+          }
+        : null;
       const payload = {
         exportedAt: new Date().toISOString(),
         account: safeAccount,
