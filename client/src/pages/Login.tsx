@@ -28,7 +28,7 @@ export default function Login() {
       if (!response.ok) {
         throw new Error(data.error || "Giriş yapılamadı.");
       }
-      window.location.href = "/hesabim";
+      window.location.href = "/yonetici";
     } catch (err) {
       setError(err instanceof Error ? err.message : "Giriş yapılamadı.");
     } finally {
@@ -43,9 +43,9 @@ export default function Login() {
           <BrandLogo className="h-14" />
         </div>
         <div className="text-center mb-7">
-          <h1 className="text-2xl font-serif font-bold">RGNFIX Giriş</h1>
+          <h1 className="text-2xl font-serif font-bold">RGNFIX Yönetici Girişi</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Yönetim ve hesap ekranına güvenli şekilde giriş yapın.
+            Siparişleri görüntülemek ve yönetmek için giriş yapın.
           </p>
         </div>
 
@@ -90,7 +90,7 @@ export default function Login() {
 
           <Button type="submit" className="w-full h-11 gap-2" disabled={loading}>
             <LogIn className="h-4 w-4" />
-            {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
+            {loading ? "Giriş yapılıyor..." : "Yönetici Paneline Gir"}
           </Button>
         </form>
       </Card>
