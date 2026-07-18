@@ -26,12 +26,18 @@ const TermsOfUse = lazy(() => import("./pages/LegalPages").then(module => ({ def
 const KvkkNotice = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.KvkkNotice })));
 const SupportPage = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.SupportPage })));
 const DeleteAccountPage = lazy(() => import("./pages/LegalPages").then(module => ({ default: module.DeleteAccountPage })));
+const ForgotPassword = lazy(() => import("./pages/AuthRecovery").then(module => ({ default: module.ForgotPassword })));
+const ResetPassword = lazy(() => import("./pages/AuthRecovery").then(module => ({ default: module.ResetPassword })));
+const VerifyEmail = lazy(() => import("./pages/AuthRecovery").then(module => ({ default: module.VerifyEmail })));
 
 function Router() {
   return (
     <Switch>
       <Route path={"/"} component={Home} />
       <Route path={"/giris"} component={Login} />
+      <Route path={"/sifremi-unuttum"} component={ForgotPassword} />
+      <Route path={"/sifre-yenile"} component={ResetPassword} />
+      <Route path={"/eposta-dogrula"} component={VerifyEmail} />
       <Route path={"/yonetici"} component={AdminPanel} />
       <Route path={"/ai-danismani"} component={AIAdvisor} />
       <Route path={"/olcu-asistani"} component={MeasurementAssistant} />
