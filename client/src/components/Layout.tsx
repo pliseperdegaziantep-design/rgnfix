@@ -21,6 +21,7 @@ import {
   LayoutDashboard,
   Settings,
   Camera,
+  Grid2X2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -29,10 +30,11 @@ import BrandLogo from "@/components/BrandLogo";
 const navItems = [
   { href: "/ai-danismani", label: "AI Danışman", icon: Bot },
   { href: "/olcu-asistani", label: "Ölçü Asistanı", icon: Ruler },
-  { href: "/olcu-fotografi", label: "Kamera Denetimi", icon: Camera },
   { href: "/fiyat-hesapla", label: "Fiyat Hesapla", icon: Calculator },
-  { href: "/kumas-karsilastirma", label: "Kumaşlar", icon: Layers },
+  { href: "/kumas-karsilastirma", label: "Plise Perde", icon: Layers },
+  { href: "/sineklik", label: "Sineklik", icon: Grid2X2 },
   { href: "/renk-danismani", label: "Renk Danışmanı", icon: Palette },
+  { href: "/olcu-fotografi", label: "Kamera Denetimi", icon: Camera },
   { href: "/montaj-rehberi", label: "Montaj Rehberi", icon: Wrench },
   { href: "/siparis", label: "Sipariş", icon: ShoppingCart },
   { href: "/bayi-haritasi", label: "Bayiler", icon: MapPin },
@@ -64,13 +66,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <nav className="hidden lg:flex items-center gap-1">
             {navItems.slice(0, 6).map(item => (
               <Link key={item.href} href={item.href}>
-                <span
-                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer ${
-                    location === item.href
-                      ? "bg-primary/10 text-primary"
-                      : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                  }`}
-                >
+                <span className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
                   {item.label}
                 </span>
               </Link>
@@ -96,51 +92,32 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 </Link>
                 {user?.role === "user" && (
                   <Link href="/hesap-ayarlari">
-                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Hesap ayarları">
-                      <Settings className="h-4 w-4" />
-                    </Button>
+                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Hesap ayarları"><Settings className="h-4 w-4" /></Button>
                   </Link>
                 )}
-                <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg" aria-label="Çıkış yap">
-                  <LogOut className="h-4 w-4" />
-                </Button>
+                <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg" aria-label="Çıkış yap"><LogOut className="h-4 w-4" /></Button>
               </div>
             ) : (
-              <Button variant="default" size="sm" onClick={() => startLogin()} className="hidden sm:flex rounded-lg">
-                Giriş Yap
-              </Button>
+              <Button variant="default" size="sm" onClick={() => startLogin()} className="hidden sm:flex rounded-lg">Giriş Yap</Button>
             )}
 
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden rounded-lg" aria-label="Menüyü aç">
-                  <Menu className="h-5 w-5" />
-                </Button>
+                <Button variant="ghost" size="icon" className="lg:hidden rounded-lg" aria-label="Menüyü aç"><Menu className="h-5 w-5" /></Button>
               </SheetTrigger>
               <SheetContent side="right" className="w-80 p-0">
                 <div className="flex flex-col h-full">
                   <div className="flex items-center justify-between p-4 border-b">
-                    <span className="font-serif text-lg font-semibold">
-                      <span className="font-black tracking-tight text-primary">RGN<span className="text-secondary">FIX</span></span>
-                    </span>
-                    <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat">
-                      <X className="h-4 w-4" />
-                    </Button>
+                    <span className="font-serif text-lg font-semibold"><span className="font-black tracking-tight text-primary">RGN<span className="text-secondary">FIX</span></span></span>
+                    <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat"><X className="h-4 w-4" /></Button>
                   </div>
                   <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
                     {navItems.map(item => {
                       const Icon = item.icon;
                       return (
                         <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
-                          <span
-                            className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                              location === item.href
-                                ? "bg-primary/10 text-primary"
-                                : "text-muted-foreground hover:text-foreground hover:bg-accent"
-                            }`}
-                          >
-                            <Icon className="h-4 w-4" />
-                            {item.label}
+                          <span className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
+                            <Icon className="h-4 w-4" />{item.label}
                           </span>
                         </Link>
                       );
@@ -149,29 +126,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="p-4 border-t space-y-2">
                     {isAuthenticated ? (
                       <>
-                        <Link href={accountHref} onClick={() => setMobileOpen(false)}>
-                          <Button variant="outline" className="w-full justify-start gap-2">
-                            <AccountIcon className="h-4 w-4" />
-                            {accountLabel}
-                          </Button>
-                        </Link>
-                        {user?.role === "user" && (
-                          <Link href="/hesap-ayarlari" onClick={() => setMobileOpen(false)}>
-                            <Button variant="outline" className="w-full justify-start gap-2">
-                              <Settings className="h-4 w-4" />
-                              Hesap Ayarları
-                            </Button>
-                          </Link>
-                        )}
-                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}>
-                          <LogOut className="h-4 w-4" />
-                          Çıkış Yap
-                        </Button>
+                        <Link href={accountHref} onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><AccountIcon className="h-4 w-4" />{accountLabel}</Button></Link>
+                        {user?.role === "user" && <Link href="/hesap-ayarlari" onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><Settings className="h-4 w-4" />Hesap Ayarları</Button></Link>}
+                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}><LogOut className="h-4 w-4" />Çıkış Yap</Button>
                       </>
                     ) : (
-                      <Button className="w-full" onClick={() => startLogin()}>
-                        Giriş Yap / Kayıt Ol
-                      </Button>
+                      <Button className="w-full" onClick={() => startLogin()}>Giriş Yap / Kayıt Ol</Button>
                     )}
                   </div>
                 </div>
@@ -188,26 +148,23 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5">
             <div className="space-y-3">
               <div className="flex items-center gap-2"><BrandLogo className="h-12" /></div>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Akıllı ölçü ve demonte ürün platformu. Doğru ölçüden kolay kuruluma kadar güvenilir dijital deneyim.
-              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">Akıllı ölçü ve demonte ürün platformu. Doğru seçimden kolay kuruluma kadar güvenilir dijital deneyim.</p>
             </div>
             <div className="space-y-3">
               <h4 className="font-semibold text-sm">Hizmetler</h4>
               <div className="space-y-2 text-sm text-muted-foreground">
                 <Link href="/ai-danismani"><span className="block hover:text-foreground transition-colors cursor-pointer">AI Danışman</span></Link>
                 <Link href="/olcu-asistani"><span className="block hover:text-foreground transition-colors cursor-pointer">Ölçü Asistanı</span></Link>
-                <Link href="/olcu-fotografi"><span className="block hover:text-foreground transition-colors cursor-pointer">Kamera Denetimi</span></Link>
                 <Link href="/fiyat-hesapla"><span className="block hover:text-foreground transition-colors cursor-pointer">Fiyat Hesaplama</span></Link>
                 <Link href="/siparis"><span className="block hover:text-foreground transition-colors cursor-pointer">Online Sipariş</span></Link>
               </div>
             </div>
             <div className="space-y-3">
-              <h4 className="font-semibold text-sm">Bilgi</h4>
+              <h4 className="font-semibold text-sm">Ürünler</h4>
               <div className="space-y-2 text-sm text-muted-foreground">
-                <Link href="/kumas-karsilastirma"><span className="block hover:text-foreground transition-colors cursor-pointer">Kumaş Rehberi</span></Link>
+                <Link href="/kumas-karsilastirma"><span className="block hover:text-foreground transition-colors cursor-pointer">Plise Perde</span></Link>
+                <Link href="/sineklik"><span className="block hover:text-foreground transition-colors cursor-pointer">Sineklik</span></Link>
                 <Link href="/montaj-rehberi"><span className="block hover:text-foreground transition-colors cursor-pointer">Montaj Rehberi</span></Link>
-                <Link href="/renk-danismani"><span className="block hover:text-foreground transition-colors cursor-pointer">Renk Danışmanı</span></Link>
                 <Link href="/bayi-haritasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Bayi Bul</span></Link>
               </div>
             </div>
@@ -217,7 +174,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link href="/gizlilik-politikasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Gizlilik Politikası</span></Link>
                 <Link href="/kullanim-kosullari"><span className="block hover:text-foreground transition-colors cursor-pointer">Kullanım Koşulları</span></Link>
                 <Link href="/kvkk-aydinlatma"><span className="block hover:text-foreground transition-colors cursor-pointer">KVKK Aydınlatma</span></Link>
-                <Link href="/hesap-silme"><span className="block hover:text-foreground transition-colors cursor-pointer">Hesap Silme</span></Link>
                 <Link href="/destek"><span className="block hover:text-foreground transition-colors cursor-pointer">Destek Merkezi</span></Link>
               </div>
             </div>
@@ -230,9 +186,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-border/50 text-center text-sm text-muted-foreground">
-            <p>&copy; {new Date().getFullYear()} RGNFIX. Tüm hakları saklıdır.</p>
-          </div>
+          <div className="mt-8 pt-8 border-t border-border/50 text-center text-sm text-muted-foreground"><p>&copy; {new Date().getFullYear()} RGNFIX. Tüm hakları saklıdır.</p></div>
         </div>
       </footer>
     </div>
