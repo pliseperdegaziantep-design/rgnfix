@@ -31,7 +31,7 @@ async function startServer() {
     res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
     res.setHeader(
       "Permissions-Policy",
-      "camera=(self), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=()"
+      "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), browsing-topics=()"
     );
     if (req.path.startsWith("/api/")) {
       res.setHeader("Cache-Control", "no-store, private, max-age=0");
