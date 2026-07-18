@@ -10,6 +10,7 @@ import { ensureAppSchema } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
+import { getLLMStatus, invokeLLM, toPublicLLMError } from "./llm";
 
 async function startServer() {
   await ensureAppSchema();
@@ -22,6 +23,40 @@ async function startServer() {
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "rgnfix", timestamp: new Date().toISOString() });
+  });
+
+  app.get("/api/ai/status", (_req, res) => {
+    res.json(getLLMStatus());
+  });
+
+  app.get("/api/ai/test", async (_req, res) => {
+    const status = getLLMStatus();
+    if (!status.configured) {
+      res.status(503).json({ ok: false, ...status });
+      return;
+    }
+
+    try {
+      const response = await invokeLLM({
+        max_tokens: 12,
+        messages: [{ role: "user", content: "Sadece TAMAM yaz." }],
+      });
+      const content = response.choices?.[0]?.message?.content;
+      res.json({
+        ok: true,
+        provider: status.provider,
+        model: response.model || status.model,
+        response: typeof content === "string" ? content : "TAMAM",
+      });
+    } catch (error) {
+      console.error("[AI] Connection test failed:", error);
+      res.status(502).json({
+        ok: false,
+        provider: status.provider,
+        model: status.model,
+        error: toPublicLLMError(error),
+      });
+    }
   });
 
   registerStorageProxy(app);
