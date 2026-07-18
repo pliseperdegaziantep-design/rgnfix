@@ -65,7 +65,7 @@ export class RealtimeVoiceGuide {
         try {
           const payload = JSON.parse(String(event.data)) as { type?: string; error?: { message?: string } };
           if (payload.type === "response.created") this.setState("speaking");
-          if (payload.type === "response.done") this.setState("ready");
+          if (payload.type === "response.done" || payload.type === "response.cancelled") this.setState("ready");
           if (payload.type === "error") {
             console.error("[Realtime Voice] OpenAI error:", payload.error?.message || payload);
             this.setState("error");
@@ -132,19 +132,19 @@ export class RealtimeVoiceGuide {
     await this.connect();
     if (!this.channel || this.channel.readyState !== "open") return;
 
-    this.cancel();
+    if (this.state === "speaking") this.cancel();
     this.channel.send(JSON.stringify({
       type: "response.create",
       response: {
         conversation: "none",
         output_modalities: ["audio"],
-        instructions: `Türkçe olarak yalnızca aşağıdaki yönlendirmeyi bir kez, dinamik ve doğal bir kadın sesiyle söyle. Ek cümle kurma, tekrar etme: ${cleaned}`,
+        instructions: `Türkçe olarak yalnızca aşağıdaki yönlendirmeyi bir kez; dinamik, akıcı, sıcak ve kadın tınısına yakın bir sesle söyle. Ek cümle kurma ve tekrar etme: ${cleaned}`,
       },
     }));
   }
 
   cancel() {
-    if (this.channel?.readyState === "open") {
+    if (this.state === "speaking" && this.channel?.readyState === "open") {
       this.channel.send(JSON.stringify({ type: "response.cancel" }));
     }
     if (this.audio) {
