@@ -74,7 +74,6 @@ export default function MeasurementAssistant() {
   const [recordingUrl, setRecordingUrl] = useState("");
   const [error, setError] = useState("");
 
-  const selectedArea = APPLICATION_AREAS.find(option => option.id === applicationArea);
   const availableMounts = applicationArea ? MOUNTING_OPTIONS[applicationArea] : [];
   const currentPanel = panels[currentPanelIndex];
   const completedCount = panels.filter(panel => panel.completed).length;
@@ -109,7 +108,7 @@ export default function MeasurementAssistant() {
     if (screen === "measure") {
       if (phase === "width") {
         const openingText = applicationArea === "cam_balkon"
-          ? "Bu kanat açılıyorsa açılır kanat seçeneğini işaretleyebilirsiniz. Açılır kanat sayısı sıfır, bir veya birden fazla olabilir."
+          ? "Bu kanat açılıyorsa açılır kanat seçeneğini işaretleyin."
           : "";
         return `${currentLabel} için önce en ölçüsünü alıyoruz. Çelik metreyi profilin dışından değil, camın sol iç kenarından sağ iç kenarına düz tutun. Cam ölçüsünü santimetre olarak yazın. ${openingText}`.trim();
       }
@@ -290,7 +289,7 @@ export default function MeasurementAssistant() {
           <CardContent className="p-7 text-center sm:p-10">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Ruler className="h-7 w-7" /></div>
             <h1 className="mt-5 text-3xl font-serif font-bold">Canlı Ölçü Asistanı</h1>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">Çelik metrenizi hazırlayın. Size önce EN, sonra BOY ölçüsünü kısa ve canlı yönlendirmelerle aldıracağız.</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">Çelik metrenizi hazırlayın. Önce EN, sonra BOY ölçüsünü alacağız.</p>
             <Button onClick={() => void startAssistant()} className="mt-7 h-12 w-full gap-2 text-base">Ölçüye Başla <ArrowRight className="h-4 w-4" /></Button>
             <p className="mt-3 text-[11px] text-muted-foreground">Ses yapay zekâ tarafından oluşturulur.</p>
           </CardContent>
@@ -370,7 +369,7 @@ export default function MeasurementAssistant() {
               {applicationArea === "cam_balkon" && (
                 <Label className="flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm">
                   <input type="checkbox" checked={currentPanel.isOpeningPanel} onChange={event => setOpeningPanel(event.target.checked)} className="h-4 w-4" />
-                  <span><strong>Bu kanat açılır kanat</strong><span className="block text-xs text-muted-foreground">İsteğe bağlıdır. Açılır kanat sayısı 0, 1, 3 veya daha fazla olabilir.</span></span>
+                  <span><strong>Açılır kanat</strong><span className="block text-xs text-muted-foreground">Yalnızca açılır kanatsa işaretleyin.</span></span>
                 </Label>
               )}
 
@@ -385,12 +384,12 @@ export default function MeasurementAssistant() {
                   id="measurement-value"
                   inputMode="decimal"
                   autoFocus
-                  placeholder={phase === "width" ? "Örn: 56 veya 56,4" : "Örn: 178 veya 178,5"}
+                  placeholder={phase === "width" ? "Örn: 51" : "Örn: 178"}
                   value={value}
                   onChange={event => updateCurrentPanel(phase === "width" ? "measuredWidth" : "measuredHeight", event.target.value)}
                   className="h-16 text-center text-2xl font-semibold"
                 />
-                <p className="text-center text-xs text-muted-foreground">Metrede gördüğünüz net cam ölçüsünü yazın. Pay düşmeyin.</p>
+                <p className="text-center text-xs text-muted-foreground">Net cam ölçüsünü yazın.</p>
               </div>
 
               {error && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
@@ -437,11 +436,11 @@ export default function MeasurementAssistant() {
         <CardContent className="space-y-3">
           {calculatedMeasurements.map(measurement => (
             <div key={measurement.index} className="flex items-center justify-between gap-3 rounded-xl border p-4">
-              <div><p className="font-medium">{measurement.label}</p><p className="text-xs text-muted-foreground">Net cam ölçüsü</p></div>
+              <p className="font-medium">{measurement.label}</p>
               <p className="text-lg font-semibold">{formatCm(measurement.measuredWidthCm)} × {formatCm(measurement.measuredHeightCm)} cm</p>
             </div>
           ))}
-          {recordingUrl && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">İzinli ölçüm kaydı siparişe eklenmeye hazır.</div>}
+          {recordingUrl && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Ölçüm kaydı siparişe eklenmeye hazır.</div>}
         </CardContent>
       </Card>
 
