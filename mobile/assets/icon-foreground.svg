@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#00B4B0"/><stop offset=".55" stop-color="#0096D6"/><stop offset="1" stop-color="#1E2A39"/></linearGradient></defs>
+  <path d="M205 205h155l152 209 152-209h155L592 512l227 307H664L512 610 360 819H205l227-307L205 205Z" fill="#fff"/>
+  <path d="M512 414 664 205h155L592 512l-80-98Z" fill="url(#g)"/>
+  <g fill="none" stroke="#00A9CF" stroke-width="16" stroke-linecap="round">
+    <path d="M170 300h-38v424h38M132 370h50M132 440h38M132 512h50M132 584h38M132 654h50"/>
+    <path d="M854 300h38v424h-38M892 370h-50M892 440h-38M892 512h-50M892 584h-38M892 654h-50"/>
+  </g>
+</svg>
