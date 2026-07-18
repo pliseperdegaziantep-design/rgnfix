@@ -13,6 +13,7 @@ const Login = lazy(() => import("./pages/Login"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const AIAdvisor = lazy(() => import("./pages/AIAdvisor"));
 const MeasurementAssistant = lazy(() => import("./pages/MeasurementAssistant"));
+const PhotoSupport = lazy(() => import("./pages/PhotoSupport"));
 const PriceCalculator = lazy(() => import("./pages/PriceCalculator"));
 const FabricComparison = lazy(() => import("./pages/FabricComparison"));
 const ColorAdvisor = lazy(() => import("./pages/ColorAdvisor"));
@@ -41,6 +42,7 @@ function Router() {
       <Route path={"/yonetici"} component={AdminPanel} />
       <Route path={"/ai-danismani"} component={AIAdvisor} />
       <Route path={"/olcu-asistani"} component={MeasurementAssistant} />
+      <Route path={"/olcu-fotografi"} component={PhotoSupport} />
       <Route path={"/fiyat-hesapla"} component={PriceCalculator} />
       <Route path={"/kumas-karsilastirma"} component={FabricComparison} />
       <Route path={"/renk-danismani"} component={ColorAdvisor} />
