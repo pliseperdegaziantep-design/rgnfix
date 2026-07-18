@@ -35,23 +35,49 @@ function isDuplicateColumnError(error: unknown) {
   );
 }
 
+async function addColumn(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, statement: string, label: string) {
+  try {
+    await db.execute(sql.raw(statement));
+    console.log(`[Database] ${label} column added`);
+  } catch (error) {
+    if (!isDuplicateColumnError(error)) {
+      console.error(`[Database] Failed to add ${label}:`, error);
+      throw error;
+    }
+  }
+}
+
 /**
  * Hostinger'da ayrıca terminal çalıştırmaya gerek kalmadan küçük, geriye uyumlu
- * şema güncellemelerini uygular. Var olan kayıtları değiştirmez.
+ * şema güncellemelerini uygular. Var olan kayıtları değiştirmez; eski yerel
+ * hesapları e-posta doğrulanmış ve mevcut koşulları kabul etmiş olarak işaretler.
  */
 export async function ensureAppSchema() {
   if (schemaChecked) return;
   const db = await getDb();
   if (!db) return;
 
+  await addColumn(db, "ALTER TABLE users ADD COLUMN passwordHash varchar(255) NULL", "users.passwordHash");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN emailVerifiedAt timestamp NULL", "users.emailVerifiedAt");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN verificationTokenHash varchar(64) NULL", "users.verificationTokenHash");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN verificationTokenExpiresAt timestamp NULL", "users.verificationTokenExpiresAt");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN resetTokenHash varchar(64) NULL", "users.resetTokenHash");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN resetTokenExpiresAt timestamp NULL", "users.resetTokenExpiresAt");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN termsAcceptedAt timestamp NULL", "users.termsAcceptedAt");
+  await addColumn(db, "ALTER TABLE users ADD COLUMN privacyAcceptedAt timestamp NULL", "users.privacyAcceptedAt");
+
   try {
-    await db.execute(sql.raw("ALTER TABLE users ADD COLUMN passwordHash varchar(255) NULL"));
-    console.log("[Database] users.passwordHash column added");
+    await db.execute(sql.raw(`
+      UPDATE users
+      SET
+        emailVerifiedAt = COALESCE(emailVerifiedAt, createdAt),
+        termsAcceptedAt = COALESCE(termsAcceptedAt, createdAt),
+        privacyAcceptedAt = COALESCE(privacyAcceptedAt, createdAt)
+      WHERE passwordHash IS NOT NULL
+        AND (emailVerifiedAt IS NULL OR termsAcceptedAt IS NULL OR privacyAcceptedAt IS NULL)
+    `));
   } catch (error) {
-    if (!isDuplicateColumnError(error)) {
-      console.error("[Database] Schema update failed:", error);
-      throw error;
-    }
+    console.warn("[Database] Existing account consent backfill skipped:", error);
   }
 
   schemaChecked = true;
