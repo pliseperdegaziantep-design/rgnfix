@@ -69,9 +69,6 @@ export default function Login() {
             <h1 className="text-2xl font-serif font-bold">
               {mode === "login" ? "Hesabınıza Giriş Yapın" : "Ücretsiz Hesap Oluşturun"}
             </h1>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Siparişlerinizi takip edin, profilinizi yönetin ve 24 saat içinde iptal talebi oluşturun.
-            </p>
           </div>
 
           <div className="mb-6 grid grid-cols-2 rounded-xl bg-muted p-1">
@@ -197,10 +194,6 @@ export default function Login() {
                   : "Hesap Oluştur"}
             </Button>
           </form>
-
-          <p className="mt-5 text-center text-xs text-muted-foreground">
-            Yönetici hesabı da aynı giriş ekranını kullanır.
-          </p>
         </div>
       </Card>
     </div>
