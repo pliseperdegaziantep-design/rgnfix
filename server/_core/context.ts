@@ -19,6 +19,9 @@ export async function createContext(
     if (!user) {
       user = await sdk.authenticateRequest(opts.req);
     }
+    if (user) {
+      user = { ...user, passwordHash: null };
+    }
   } catch {
     user = null;
   }
