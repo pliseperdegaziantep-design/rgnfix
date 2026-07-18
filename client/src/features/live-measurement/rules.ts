@@ -1,11 +1,8 @@
 export type ApplicationArea =
   | "cam_balkon"
-  | "pvc_pencere"
-  | "pvc_kapi"
-  | "pvc_surgulu_kapi"
-  | "aluminyum_pencere"
-  | "aluminyum_kapi"
-  | "aluminyum_surgulu_kapi";
+  | "pvc_pencere_kapi"
+  | "aluminyum_pencere_kapi"
+  | "surgulu_kapi";
 
 export type MountingType = "kancali" | "vidali" | "yapisma";
 export type PanelType = "opening_panel" | "normal_panel";
@@ -56,22 +53,16 @@ export interface MeasurementTransferPayload {
 
 export const APPLICATION_AREAS: ApplicationAreaOption[] = [
   { id: "cam_balkon", name: "Cam Balkon", description: "Katlanır cam balkon kanatları", pieceLabel: "Kanat" },
-  { id: "pvc_pencere", name: "PVC Pencere", description: "PVC doğrama pencere", pieceLabel: "Parça" },
-  { id: "pvc_kapi", name: "PVC Kapı", description: "PVC doğrama kapı", pieceLabel: "Parça" },
-  { id: "pvc_surgulu_kapi", name: "PVC Sürgülü Kapı", description: "PVC sürgülü kapı sistemi", pieceLabel: "Parça" },
-  { id: "aluminyum_pencere", name: "Alüminyum Pencere", description: "Alüminyum doğrama pencere", pieceLabel: "Parça" },
-  { id: "aluminyum_kapi", name: "Alüminyum Kapı", description: "Alüminyum doğrama kapı", pieceLabel: "Parça" },
-  { id: "aluminyum_surgulu_kapi", name: "Alüminyum Sürgülü Kapı", description: "Alüminyum sürgülü kapı sistemi", pieceLabel: "Parça" },
+  { id: "pvc_pencere_kapi", name: "PVC Pencere / PVC Kapı", description: "PVC doğrama pencere ve kapılar", pieceLabel: "Parça" },
+  { id: "aluminyum_pencere_kapi", name: "Alüminyum Pencere / Alüminyum Kapı", description: "Alüminyum doğrama pencere ve kapılar", pieceLabel: "Parça" },
+  { id: "surgulu_kapi", name: "PVC / Alüminyum Sürgülü Kapı", description: "PVC ve alüminyum sürgülü kapı sistemleri", pieceLabel: "Parça" },
 ];
 
 export const MOUNTING_OPTIONS: Record<ApplicationArea, MountingType[]> = {
   cam_balkon: ["kancali", "vidali", "yapisma"],
-  pvc_pencere: ["vidali", "yapisma"],
-  pvc_kapi: ["vidali", "yapisma"],
-  pvc_surgulu_kapi: ["vidali", "yapisma"],
-  aluminyum_pencere: ["vidali", "yapisma"],
-  aluminyum_kapi: ["vidali", "yapisma"],
-  aluminyum_surgulu_kapi: ["vidali", "yapisma"],
+  pvc_pencere_kapi: ["vidali", "yapisma"],
+  aluminyum_pencere_kapi: ["vidali", "yapisma"],
+  surgulu_kapi: ["vidali", "yapisma"],
 };
 
 export const MOUNTING_LABELS: Record<MountingType, string> = {
@@ -85,26 +76,18 @@ export const MEASUREMENT_RULES = {
     opening_panel: { widthDeductionCm: 2, heightDeductionCm: 0 },
     normal_panel: { widthDeductionCm: 0, heightDeductionCm: 0 },
   },
-  pvc_pencere: { widthDeductionCm: 0, heightDeductionCm: 0 },
-  pvc_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
-  pvc_surgulu_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
-  aluminyum_pencere: { widthDeductionCm: 0, heightDeductionCm: 0 },
-  aluminyum_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
-  aluminyum_surgulu_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
+  pvc_pencere_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
+  aluminyum_pencere_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
+  surgulu_kapi: { widthDeductionCm: 0, heightDeductionCm: 0 },
 } as const;
 
 const CM_PATTERN = /^\d+(?:[.,]\d{1,2})?$/;
 
 export function normalizeCmInput(value: unknown): number {
   const raw = String(value ?? "").trim();
-  if (!CM_PATTERN.test(raw)) {
-    throw new Error("Ölçüyü santimetre olarak girin. Örnek: 56 veya 56,4");
-  }
-
+  if (!CM_PATTERN.test(raw)) throw new Error("Ölçüyü santimetre olarak girin. Örnek: 56 veya 56,4");
   const measurement = Number(raw.replace(",", "."));
-  if (!Number.isFinite(measurement) || measurement <= 0) {
-    throw new Error("Sıfırdan büyük geçerli bir ölçü girin.");
-  }
+  if (!Number.isFinite(measurement) || measurement <= 0) throw new Error("Sıfırdan büyük geçerli bir ölçü girin.");
   return measurement;
 }
 
@@ -150,9 +133,7 @@ export function calculateProductionMeasurement({
   const productionWidthUnits = measuredWidthUnits - widthDeductionUnits;
   const productionHeightUnits = measuredHeightUnits - heightDeductionUnits;
 
-  if (productionWidthUnits <= 0 || productionHeightUnits <= 0) {
-    throw new Error("Hesaplanan üretim ölçüsü geçersiz. Ölçüyü yeniden kontrol edin.");
-  }
+  if (productionWidthUnits <= 0 || productionHeightUnits <= 0) throw new Error("Hesaplanan üretim ölçüsü geçersiz. Ölçüyü yeniden kontrol edin.");
 
   return {
     measuredWidthCm: internalUnitsToCm(measuredWidthUnits),
@@ -164,38 +145,17 @@ export function calculateProductionMeasurement({
   };
 }
 
-export function calculatePanel(
-  applicationArea: ApplicationArea,
-  panel: MeasurementPanelDraft,
-  index: number,
-): CalculatedMeasurement {
+export function calculatePanel(applicationArea: ApplicationArea, panel: MeasurementPanelDraft, index: number): CalculatedMeasurement {
   const measuredWidthCm = normalizeCmInput(panel.measuredWidth);
   const measuredHeightCm = normalizeCmInput(panel.measuredHeight);
-  const panelType: PanelType = applicationArea === "cam_balkon" && panel.isOpeningPanel
-    ? "opening_panel"
-    : "normal_panel";
-  const result = calculateProductionMeasurement({
-    applicationArea,
-    panelType,
-    measuredWidthCm,
-    measuredHeightCm,
-  });
-
+  const panelType: PanelType = applicationArea === "cam_balkon" && panel.isOpeningPanel ? "opening_panel" : "normal_panel";
+  const result = calculateProductionMeasurement({ applicationArea, panelType, measuredWidthCm, measuredHeightCm });
   const area = APPLICATION_AREAS.find(option => option.id === applicationArea);
   const baseLabel = `${index + 1}. ${area?.pieceLabel ?? "Parça"}`;
-  return {
-    index,
-    label: panelType === "opening_panel" ? `${baseLabel} – Açılır kanat` : baseLabel,
-    panelType,
-    ...result,
-  };
+  return { index, label: panelType === "opening_panel" ? `${baseLabel} – Açılır kanat` : baseLabel, panelType, ...result };
 }
 
-export function buildMeasurementText({
-  applicationArea,
-  mountType,
-  measurements,
-}: {
+export function buildMeasurementText({ applicationArea, mountType, measurements }: {
   applicationArea: ApplicationArea;
   mountType: MountingType;
   measurements: CalculatedMeasurement[];
@@ -208,23 +168,15 @@ export function buildMeasurementText({
     `Montaj tipi: ${MOUNTING_LABELS[mountType]}`,
     "",
   ];
-
   measurements.forEach(measurement => {
     lines.push(measurement.label);
     lines.push(`Cam ölçüsü: ${formatCm(measurement.measuredWidthCm)} × ${formatCm(measurement.measuredHeightCm)} cm`);
     lines.push("");
   });
-
   return lines.join("\n");
 }
 
-export function createTransferPayload({
-  applicationArea,
-  mountType,
-  caseType,
-  measurements,
-  recordingUrl,
-}: {
+export function createTransferPayload({ applicationArea, mountType, caseType, measurements, recordingUrl }: {
   applicationArea: ApplicationArea;
   mountType: MountingType;
   caseType: string;
