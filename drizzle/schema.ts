@@ -8,6 +8,7 @@ export const users = mysqlTable("users", {
   openId: varchar("openId", { length: 64 }).notNull().unique(),
   name: text("name"),
   email: varchar("email", { length: 320 }),
+  passwordHash: varchar("passwordHash", { length: 255 }),
   phone: varchar("phone", { length: 20 }),
   address: text("address"),
   city: varchar("city", { length: 100 }),
@@ -29,18 +30,18 @@ export const fabrics = mysqlTable("fabrics", {
   name: varchar("name", { length: 100 }).notNull(),
   slug: varchar("slug", { length: 100 }).notNull().unique(),
   description: text("description"),
-  privacy: int("privacy"), // 1-10 scale
-  sunControl: int("sunControl"), // 1-10
-  heatInsulation: int("heatInsulation"), // 1-10
-  cleaning: int("cleaning"), // 1-10
-  durability: int("durability"), // 1-10
-  blackout: int("blackout"), // 1-10
+  privacy: int("privacy"),
+  sunControl: int("sunControl"),
+  heatInsulation: int("heatInsulation"),
+  cleaning: int("cleaning"),
+  durability: int("durability"),
+  blackout: int("blackout"),
   usageArea: text("usageArea"),
   advantages: text("advantages"),
   disadvantages: text("disadvantages"),
   pricePerSqm: decimal("pricePerSqm", { precision: 10, scale: 2 }).notNull(),
   imageUrl: text("imageUrl"),
-  colors: json("colors"), // JSON array of available colors
+  colors: json("colors"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
 });
 
