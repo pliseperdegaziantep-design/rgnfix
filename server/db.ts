@@ -68,6 +68,27 @@ export async function ensureAppSchema() {
 
   try {
     await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS pushTokens (
+        id int NOT NULL AUTO_INCREMENT,
+        userId int NOT NULL,
+        token varchar(512) NOT NULL,
+        platform enum('android','ios','web') NOT NULL,
+        deviceName varchar(160) NULL,
+        enabled int NOT NULL DEFAULT 1,
+        createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updatedAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY pushTokens_token_unique (token),
+        KEY pushTokens_userId_index (userId)
+      )
+    `));
+  } catch (error) {
+    console.error("[Database] Failed to create pushTokens table:", error);
+    throw error;
+  }
+
+  try {
+    await db.execute(sql.raw(`
       UPDATE users
       SET
         emailVerifiedAt = COALESCE(emailVerifiedAt, createdAt),
