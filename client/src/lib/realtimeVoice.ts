@@ -5,19 +5,20 @@ type TranscriptListener = (event: { role: "user" | "assistant"; text: string }) 
 type ErrorListener = (message: string) => void;
 
 const SESSION_INSTRUCTIONS = [
-  "Sen RGNFIX canlı ölçü ve plise perde danışmanısın.",
-  "Daima Türkçe konuş.",
-  "Ses tonun dinamik, akıcı, sıcak, kibar ve samimi olsun.",
-  "Kısa konuş; her turda en fazla iki kısa cümle ve yalnızca bir soru kullan.",
-  "Müşterinin bu görüşmede verdiği bilgileri hatırla ve cevaplanmış soruyu yeniden sorma.",
-  "Kendini, aynı cümleyi veya aynı açıklamayı tekrar etme.",
-  "Yalnızca RGNFIX, plise perde, kumaş, renk, montaj, ölçü, fiyat süreci, sipariş ve ürün kullanımıyla ilgili cevap ver.",
-  "Ölçü tahmini veya yuvarlama yapma. Müşterinin girdiği ölçüyü değiştirme.",
-  "Önce net cam EN ölçüsünü, sonra net cam BOY ölçüsünü çelik metreyle santimetre olarak aldır.",
-  "Yalnızca cam balkonda Açılır kanat kutusu işaretlenmişse sistem enden 2 santimetre düşer.",
-  "PVC ve alüminyum kapı veya pencerelerde kancalı montaj önerme.",
-  "Fiyatı tahmin etme; uygulamanın matematiksel fiyat hesaplama ekranına yönlendir.",
-  "Bilmediğin ürün, fiyat veya teknik bilgiyi uydurma.",
+  "Sen RGNFIX canlı ürün ve ölçü asistanısın.",
+  "Daima Türkçe, doğal ve insansı konuş.",
+  "Konuşma hızın normal olsun.",
+  "Her cevap tek veya en fazla iki kısa cümle olsun.",
+  "Müşteriyi sıkma, gereksiz açıklama yapma ve aynı cümleyi tekrar etme.",
+  "Müşterinin bu görüşmede verdiği bilgileri hatırla.",
+  "RGNFIX zamanla farklı demonte ürünleri de kapsayan genel bir platformdur.",
+  "Plise perde, sineklik, ölçü, montaj, kumaş, renk, fiyat süreci ve sipariş konularında yardımcı ol.",
+  "Ölçü tahmini veya yuvarlama yapma. Müşterinin yazdığı ölçüyü değiştirme.",
+  "Önce uygulama alanı, sonra montaj seçeneği, sonra cam tipi, ardından adet, en ve boy sırasıyla ilerle.",
+  "Tek cam için kalın kasa, çift cam için slim kasa kullanılır.",
+  "Sadece cam balkonda açılır kanat işaretlenmişse sistem enden 2 santimetre düşer.",
+  "PVC ve alüminyum pencere veya kapılarda kancalı montaj önerme.",
+  "Fiyatı tahmin etme; uygulamanın matematiksel hesaplama ekranına yönlendir.",
 ].join(" ");
 
 export class RealtimeVoiceGuide {
@@ -32,6 +33,7 @@ export class RealtimeVoiceGuide {
   private transcriptListener?: TranscriptListener;
   private errorListener?: ErrorListener;
   private assistantTranscript = "";
+  private pendingSpeech = "";
 
   constructor(listener?: VoiceStateListener, transcriptListener?: TranscriptListener, errorListener?: ErrorListener) {
     this.listener = listener;
@@ -55,9 +57,7 @@ export class RealtimeVoiceGuide {
 
   setMuted(muted: boolean) {
     this.muted = muted;
-    this.microphoneStream?.getAudioTracks().forEach(track => {
-      track.enabled = !muted;
-    });
+    this.microphoneStream?.getAudioTracks().forEach(track => { track.enabled = !muted; });
     if (this.audio) this.audio.muted = muted;
     if (muted) {
       this.cancel();
@@ -89,24 +89,21 @@ export class RealtimeVoiceGuide {
         type: "realtime",
         instructions: SESSION_INSTRUCTIONS,
         output_modalities: ["audio"],
-        max_output_tokens: 220,
+        max_output_tokens: 120,
         audio: {
           input: {
             noise_reduction: { type: "near_field" },
-            transcription: {
-              model: "gpt-4o-mini-transcribe",
-              language: "tr",
-            },
+            transcription: { model: "gpt-4o-mini-transcribe", language: "tr" },
             turn_detection: {
               type: "server_vad",
-              threshold: 0.5,
-              prefix_padding_ms: 300,
-              silence_duration_ms: 650,
+              threshold: 0.45,
+              prefix_padding_ms: 350,
+              silence_duration_ms: 1100,
               create_response: true,
-              interrupt_response: true,
+              interrupt_response: false,
             },
           },
-          output: { speed: 1.1 },
+          output: { speed: 1 },
         },
       },
     }));
@@ -114,13 +111,7 @@ export class RealtimeVoiceGuide {
 
   private handleServerEvent(rawEvent: MessageEvent) {
     try {
-      const payload = JSON.parse(String(rawEvent.data)) as {
-        type?: string;
-        transcript?: string;
-        delta?: string;
-        error?: { message?: string };
-      };
-
+      const payload = JSON.parse(String(rawEvent.data)) as { type?: string; transcript?: string; delta?: string; error?: { message?: string } };
       if (payload.type === "input_audio_buffer.speech_started") this.setState(this.muted ? "muted" : "listening");
       if (payload.type === "response.created") {
         this.assistantTranscript = "";
@@ -136,27 +127,24 @@ export class RealtimeVoiceGuide {
         const text = payload.transcript?.trim();
         if (text) this.transcriptListener?.({ role: "user", text });
       }
-      if (payload.type === "response.done") this.setState(this.muted ? "muted" : "listening");
-      if (payload.type === "error") {
-        const message = payload.error?.message || "OpenAI canlı ses oturumunda hata oluştu.";
-        console.error("[Realtime Voice] OpenAI error:", message);
-        this.reportError(message);
+      if (payload.type === "response.done") {
+        this.setState(this.muted ? "muted" : "listening");
+        if (this.pendingSpeech && !this.muted) {
+          const next = this.pendingSpeech;
+          this.pendingSpeech = "";
+          window.setTimeout(() => void this.speak(next), 250);
+        }
       }
+      if (payload.type === "error") this.reportError(payload.error?.message || "OpenAI canlı ses oturumunda hata oluştu.");
     } catch {
       // Ignore non-JSON WebRTC events.
     }
   }
 
   private async requestEphemeralToken() {
-    const response = await fetch("/api/ai/realtime/token", {
-      method: "GET",
-      credentials: "include",
-      cache: "no-store",
-    });
+    const response = await fetch("/api/ai/realtime/token", { method: "GET", credentials: "include", cache: "no-store" });
     const payload = await response.json().catch(() => null) as { value?: string; model?: string; error?: string } | null;
-    if (!response.ok || !payload?.value) {
-      throw new Error(payload?.error || `Canlı ses geçici bağlantı anahtarı alınamadı (${response.status}).`);
-    }
+    if (!response.ok || !payload?.value) throw new Error(payload?.error || `Canlı ses geçici bağlantı anahtarı alınamadı (${response.status}).`);
     return payload;
   }
 
@@ -164,17 +152,10 @@ export class RealtimeVoiceGuide {
     const token = await this.requestEphemeralToken();
     const response = await fetch("https://api.openai.com/v1/realtime/calls", {
       method: "POST",
-      headers: {
-        authorization: `Bearer ${token.value}`,
-        "content-type": "application/sdp",
-      },
+      headers: { authorization: `Bearer ${token.value}`, "content-type": "application/sdp" },
       body: sdp,
     });
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      console.error("[Realtime Voice] Direct OpenAI call failed:", response.status, detail);
-      throw new Error(`Doğrudan canlı ses bağlantısı kurulamadı (${response.status}).`);
-    }
+    if (!response.ok) throw new Error(`Doğrudan canlı ses bağlantısı kurulamadı (${response.status}).`);
     return response.text();
   }
 
@@ -198,8 +179,8 @@ export class RealtimeVoiceGuide {
 
     this.connectionPromise = (async () => {
       if (!navigator.mediaDevices?.getUserMedia) throw new Error("Bu cihaz canlı mikrofon görüşmesini desteklemiyor.");
-
       this.setState("connecting");
+
       let microphoneStream: MediaStream;
       try {
         microphoneStream = await navigator.mediaDevices.getUserMedia({
@@ -208,7 +189,7 @@ export class RealtimeVoiceGuide {
         });
       } catch (error) {
         const name = error instanceof DOMException ? error.name : "";
-        if (name === "NotAllowedError") throw new Error("Mikrofon izni kapalı. Safari adres çubuğundaki site ayarlarından mikrofonu İzin Ver olarak seçin.");
+        if (name === "NotAllowedError") throw new Error("Mikrofon izni kapalı. Site ayarlarından mikrofonu İzin Ver olarak seçin.");
         if (name === "NotFoundError") throw new Error("Bu cihazda kullanılabilir mikrofon bulunamadı.");
         throw new Error("Mikrofon açılamadı.");
       }
@@ -246,8 +227,7 @@ export class RealtimeVoiceGuide {
       let answerSdp: string;
       try {
         answerSdp = await this.createDirectAnswer(sdp);
-      } catch (directError) {
-        console.warn("[Realtime Voice] Direct connection failed, using server fallback:", directError);
+      } catch {
         answerSdp = await this.createServerFallbackAnswer(sdp);
       }
 
@@ -277,13 +257,10 @@ export class RealtimeVoiceGuide {
       this.setState(this.muted ? "muted" : "listening");
     })().catch(error => {
       const message = error instanceof Error ? error.message : "Canlı ses bağlantısı kurulamadı.";
-      console.error("[Realtime Voice] Connection failed:", error);
       this.disconnect();
       this.reportError(message);
       throw error;
-    }).finally(() => {
-      this.connectionPromise = null;
-    });
+    }).finally(() => { this.connectionPromise = null; });
 
     return this.connectionPromise;
   }
@@ -293,28 +270,29 @@ export class RealtimeVoiceGuide {
     if (!cleaned || this.muted) return;
     await this.connect();
     if (!this.channel || this.channel.readyState !== "open") return;
-
-    if (this.state === "speaking") this.cancel();
+    if (this.state === "speaking") {
+      this.pendingSpeech = cleaned;
+      return;
+    }
     this.channel.send(JSON.stringify({
       type: "response.create",
       response: {
         conversation: "auto",
         output_modalities: ["audio"],
-        max_output_tokens: 160,
-        instructions: `Müşteriye yalnızca şu ölçü adımını bir kez, kısa ve doğal şekilde söyle. Sonra müşterinin soru sormasını bekle. Tekrar etme: ${cleaned}`,
+        max_output_tokens: 80,
+        instructions: `Bu adımı yalnızca bir kez, doğal ve çok kısa söyle: ${cleaned}`,
       },
     }));
   }
 
   cancel() {
-    if (this.state === "speaking" && this.channel?.readyState === "open") {
-      this.channel.send(JSON.stringify({ type: "response.cancel" }));
-      this.channel.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
-    }
+    this.pendingSpeech = "";
+    if (this.state === "speaking" && this.channel?.readyState === "open") this.channel.send(JSON.stringify({ type: "response.cancel" }));
     if (this.state !== "error") this.setState(this.muted ? "muted" : this.channel?.readyState === "open" ? "listening" : "idle");
   }
 
   disconnect() {
+    this.pendingSpeech = "";
     this.channel?.close();
     this.microphoneStream?.getTracks().forEach(track => track.stop());
     this.peer?.getReceivers().forEach(receiver => receiver.track?.stop());
