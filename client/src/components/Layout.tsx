@@ -29,7 +29,7 @@ import BrandLogo from "@/components/BrandLogo";
 const navItems = [
   { href: "/ai-danismani", label: "AI Danışman", icon: Bot },
   { href: "/olcu-asistani", label: "Ölçü Asistanı", icon: Ruler },
-  { href: "/olcu-fotografi", label: "Ölçü Fotoğrafı", icon: Camera },
+  { href: "/olcu-fotografi", label: "Kamera Denetimi", icon: Camera },
   { href: "/fiyat-hesapla", label: "Fiyat Hesapla", icon: Calculator },
   { href: "/kumas-karsilastirma", label: "Kumaşlar", icon: Layers },
   { href: "/renk-danismani", label: "Renk Danışmanı", icon: Palette },
@@ -197,7 +197,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <div className="space-y-2 text-sm text-muted-foreground">
                 <Link href="/ai-danismani"><span className="block hover:text-foreground transition-colors cursor-pointer">AI Danışman</span></Link>
                 <Link href="/olcu-asistani"><span className="block hover:text-foreground transition-colors cursor-pointer">Ölçü Asistanı</span></Link>
-                <Link href="/olcu-fotografi"><span className="block hover:text-foreground transition-colors cursor-pointer">Ölçü Fotoğrafı</span></Link>
+                <Link href="/olcu-fotografi"><span className="block hover:text-foreground transition-colors cursor-pointer">Kamera Denetimi</span></Link>
                 <Link href="/fiyat-hesapla"><span className="block hover:text-foreground transition-colors cursor-pointer">Fiyat Hesaplama</span></Link>
                 <Link href="/siparis"><span className="block hover:text-foreground transition-colors cursor-pointer">Online Sipariş</span></Link>
               </div>
