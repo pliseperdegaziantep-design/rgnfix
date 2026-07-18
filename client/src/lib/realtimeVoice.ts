@@ -2,6 +2,23 @@ type VoiceState = "idle" | "connecting" | "listening" | "speaking" | "muted" | "
 
 type VoiceStateListener = (state: VoiceState) => void;
 type TranscriptListener = (event: { role: "user" | "assistant"; text: string }) => void;
+type ErrorListener = (message: string) => void;
+
+const SESSION_INSTRUCTIONS = [
+  "Sen RGNFIX canlı ölçü ve plise perde danışmanısın.",
+  "Daima Türkçe konuş.",
+  "Ses tonun dinamik, akıcı, sıcak, kibar ve samimi olsun.",
+  "Kısa konuş; her turda en fazla iki kısa cümle ve yalnızca bir soru kullan.",
+  "Müşterinin bu görüşmede verdiği bilgileri hatırla ve cevaplanmış soruyu yeniden sorma.",
+  "Kendini, aynı cümleyi veya aynı açıklamayı tekrar etme.",
+  "Yalnızca RGNFIX, plise perde, kumaş, renk, montaj, ölçü, fiyat süreci, sipariş ve ürün kullanımıyla ilgili cevap ver.",
+  "Ölçü tahmini veya yuvarlama yapma. Müşterinin girdiği ölçüyü değiştirme.",
+  "Önce net cam EN ölçüsünü, sonra net cam BOY ölçüsünü çelik metreyle santimetre olarak aldır.",
+  "Yalnızca cam balkonda Açılır kanat kutusu işaretlenmişse sistem enden 2 santimetre düşer.",
+  "PVC ve alüminyum kapı veya pencerelerde kancalı montaj önerme.",
+  "Fiyatı tahmin etme; uygulamanın matematiksel fiyat hesaplama ekranına yönlendir.",
+  "Bilmediğin ürün, fiyat veya teknik bilgiyi uydurma.",
+].join(" ");
 
 export class RealtimeVoiceGuide {
   private peer: RTCPeerConnection | null = null;
@@ -13,16 +30,23 @@ export class RealtimeVoiceGuide {
   private state: VoiceState = "idle";
   private listener?: VoiceStateListener;
   private transcriptListener?: TranscriptListener;
+  private errorListener?: ErrorListener;
   private assistantTranscript = "";
 
-  constructor(listener?: VoiceStateListener, transcriptListener?: TranscriptListener) {
+  constructor(listener?: VoiceStateListener, transcriptListener?: TranscriptListener, errorListener?: ErrorListener) {
     this.listener = listener;
     this.transcriptListener = transcriptListener;
+    this.errorListener = errorListener;
   }
 
   private setState(state: VoiceState) {
     this.state = state;
     this.listener?.(state);
+  }
+
+  private reportError(message: string) {
+    this.errorListener?.(message);
+    this.setState("error");
   }
 
   getState() {
@@ -58,6 +82,36 @@ export class RealtimeVoiceGuide {
     });
   }
 
+  private configureSession(channel: RTCDataChannel) {
+    channel.send(JSON.stringify({
+      type: "session.update",
+      session: {
+        type: "realtime",
+        instructions: SESSION_INSTRUCTIONS,
+        output_modalities: ["audio"],
+        max_output_tokens: 220,
+        audio: {
+          input: {
+            noise_reduction: { type: "near_field" },
+            transcription: {
+              model: "gpt-4o-mini-transcribe",
+              language: "tr",
+            },
+            turn_detection: {
+              type: "server_vad",
+              threshold: 0.5,
+              prefix_padding_ms: 300,
+              silence_duration_ms: 650,
+              create_response: true,
+              interrupt_response: true,
+            },
+          },
+          output: { speed: 1.1 },
+        },
+      },
+    }));
+  }
+
   private handleServerEvent(rawEvent: MessageEvent) {
     try {
       const payload = JSON.parse(String(rawEvent.data)) as {
@@ -65,19 +119,14 @@ export class RealtimeVoiceGuide {
         transcript?: string;
         delta?: string;
         error?: { message?: string };
-        response?: { status?: string };
       };
 
-      if (payload.type === "input_audio_buffer.speech_started") {
-        this.setState(this.muted ? "muted" : "listening");
-      }
+      if (payload.type === "input_audio_buffer.speech_started") this.setState(this.muted ? "muted" : "listening");
       if (payload.type === "response.created") {
         this.assistantTranscript = "";
         this.setState(this.muted ? "muted" : "speaking");
       }
-      if (payload.type === "response.output_audio_transcript.delta" && payload.delta) {
-        this.assistantTranscript += payload.delta;
-      }
+      if (payload.type === "response.output_audio_transcript.delta" && payload.delta) this.assistantTranscript += payload.delta;
       if (payload.type === "response.output_audio_transcript.done") {
         const text = (payload.transcript || this.assistantTranscript).trim();
         if (text) this.transcriptListener?.({ role: "assistant", text });
@@ -87,12 +136,11 @@ export class RealtimeVoiceGuide {
         const text = payload.transcript?.trim();
         if (text) this.transcriptListener?.({ role: "user", text });
       }
-      if (payload.type === "response.done") {
-        this.setState(this.muted ? "muted" : "listening");
-      }
+      if (payload.type === "response.done") this.setState(this.muted ? "muted" : "listening");
       if (payload.type === "error") {
-        console.error("[Realtime Voice] OpenAI error:", payload.error?.message || payload);
-        this.setState("error");
+        const message = payload.error?.message || "OpenAI canlı ses oturumunda hata oluştu.";
+        console.error("[Realtime Voice] OpenAI error:", message);
+        this.reportError(message);
       }
     } catch {
       // Ignore non-JSON WebRTC events.
@@ -104,24 +152,23 @@ export class RealtimeVoiceGuide {
     if (this.connectionPromise) return this.connectionPromise;
 
     this.connectionPromise = (async () => {
-      if (!navigator.mediaDevices?.getUserMedia) {
-        throw new Error("Bu cihaz canlı mikrofon görüşmesini desteklemiyor.");
-      }
+      if (!navigator.mediaDevices?.getUserMedia) throw new Error("Bu cihaz canlı mikrofon görüşmesini desteklemiyor.");
 
       this.setState("connecting");
-      const microphoneStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          channelCount: 1,
-        },
-        video: false,
-      });
-      microphoneStream.getAudioTracks().forEach(track => {
-        track.enabled = !this.muted;
-      });
+      let microphoneStream: MediaStream;
+      try {
+        microphoneStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
+          video: false,
+        });
+      } catch (error) {
+        const name = error instanceof DOMException ? error.name : "";
+        if (name === "NotAllowedError") throw new Error("Mikrofon izni kapalı. Safari adres çubuğundaki site ayarlarından mikrofonu İzin Ver olarak seçin.");
+        if (name === "NotFoundError") throw new Error("Bu cihazda kullanılabilir mikrofon bulunamadı.");
+        throw new Error("Mikrofon açılamadı.");
+      }
 
+      microphoneStream.getAudioTracks().forEach(track => { track.enabled = !this.muted; });
       const peer = new RTCPeerConnection();
       microphoneStream.getTracks().forEach(track => peer.addTrack(track, microphoneStream));
 
@@ -139,7 +186,7 @@ export class RealtimeVoiceGuide {
       };
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "connected") this.setState(this.muted ? "muted" : "listening");
-        if (["failed", "closed", "disconnected"].includes(peer.connectionState)) this.setState("error");
+        if (peer.connectionState === "failed") this.reportError("Canlı ses ağ bağlantısı kurulamadı.");
       };
 
       const channel = peer.createDataChannel("oai-events");
@@ -158,8 +205,8 @@ export class RealtimeVoiceGuide {
         body: JSON.stringify({ sdp }),
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { error?: string } | null;
-        throw new Error(payload?.error || "Canlı ses bağlantısı kurulamadı.");
+        const payload = await response.json().catch(() => null) as { error?: string; code?: string } | null;
+        throw new Error(payload?.error || `Canlı ses bağlantısı kurulamadı (${response.status}).`);
       }
 
       const answerSdp = await response.text();
@@ -172,6 +219,7 @@ export class RealtimeVoiceGuide {
         const timeout = window.setTimeout(() => reject(new Error("Canlı ses bağlantısı zaman aşımına uğradı.")), 15_000);
         channel.addEventListener("open", () => {
           window.clearTimeout(timeout);
+          this.configureSession(channel);
           resolve();
         }, { once: true });
         channel.addEventListener("error", () => {
@@ -186,9 +234,10 @@ export class RealtimeVoiceGuide {
       this.microphoneStream = microphoneStream;
       this.setState(this.muted ? "muted" : "listening");
     })().catch(error => {
+      const message = error instanceof Error ? error.message : "Canlı ses bağlantısı kurulamadı.";
       console.error("[Realtime Voice] Connection failed:", error);
       this.disconnect();
-      this.setState("error");
+      this.reportError(message);
       throw error;
     }).finally(() => {
       this.connectionPromise = null;
