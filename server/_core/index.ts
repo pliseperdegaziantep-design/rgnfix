@@ -20,8 +20,26 @@ async function startServer() {
   const app = express();
   const server = createServer(app);
 
-  app.use(express.json({ limit: "50mb" }));
-  app.use(express.urlencoded({ limit: "50mb", extended: true }));
+  app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use((req, res, next) => {
+    res.setHeader("X-Content-Type-Options", "nosniff");
+    res.setHeader("X-Frame-Options", "SAMEORIGIN");
+    res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+    res.setHeader("Cross-Origin-Opener-Policy", "same-origin-allow-popups");
+    res.setHeader(
+      "Permissions-Policy",
+      "camera=(self), microphone=(), geolocation=(self), payment=(), usb=(), browsing-topics=()"
+    );
+    if (req.path.startsWith("/api/")) {
+      res.setHeader("Cache-Control", "no-store, private, max-age=0");
+      res.setHeader("Pragma", "no-cache");
+    }
+    next();
+  });
+
+  app.use(express.json({ limit: "15mb" }));
+  app.use(express.urlencoded({ limit: "15mb", extended: true }));
 
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok", service: "rgnfix", timestamp: new Date().toISOString() });
