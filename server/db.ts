@@ -47,11 +47,6 @@ async function addColumn(db: NonNullable<Awaited<ReturnType<typeof getDb>>>, sta
   }
 }
 
-/**
- * Hostinger'da ayrıca terminal çalıştırmaya gerek kalmadan küçük, geriye uyumlu
- * şema güncellemelerini uygular. Var olan kayıtları değiştirmez; eski yerel
- * hesapları e-posta doğrulanmış ve mevcut koşulları kabul etmiş olarak işaretler.
- */
 export async function ensureAppSchema() {
   if (schemaChecked) return;
   const db = await getDb();
@@ -65,6 +60,8 @@ export async function ensureAppSchema() {
   await addColumn(db, "ALTER TABLE users ADD COLUMN resetTokenExpiresAt timestamp NULL", "users.resetTokenExpiresAt");
   await addColumn(db, "ALTER TABLE users ADD COLUMN termsAcceptedAt timestamp NULL", "users.termsAcceptedAt");
   await addColumn(db, "ALTER TABLE users ADD COLUMN privacyAcceptedAt timestamp NULL", "users.privacyAcceptedAt");
+  await addColumn(db, "ALTER TABLE orders ADD COLUMN measurementRecordingUrl text NULL", "orders.measurementRecordingUrl");
+  await addColumn(db, "ALTER TABLE orders ADD COLUMN measurementRecordingConsentAt timestamp NULL", "orders.measurementRecordingConsentAt");
 
   try {
     await db.execute(sql.raw(`
@@ -171,6 +168,5 @@ export async function getUserByOpenId(openId: string) {
   }
 
   const result = await db.select().from(users).where(eq(users.openId, openId)).limit(1);
-
   return result.length > 0 ? result[0] : undefined;
 }
