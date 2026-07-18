@@ -23,7 +23,7 @@ import {
   Camera,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
 
 const navItems = [
@@ -46,6 +46,12 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const accountHref = user?.role === "admin" ? "/yonetici" : "/hesabim";
   const accountLabel = user?.role === "admin" ? "Yönetim" : user?.name || "Hesabım";
   const AccountIcon = user?.role === "admin" ? LayoutDashboard : User;
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+  }, [location]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
