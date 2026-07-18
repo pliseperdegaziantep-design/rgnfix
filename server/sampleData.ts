@@ -1,6 +1,6 @@
 import { FABRIC_SERIES, PROFILE_COLORS } from "@shared/types";
 
-const commonColors = PROFILE_COLORS.map((color) => color.name);
+const commonColors = PROFILE_COLORS.map(color => color.name);
 
 export const fallbackFabrics = FABRIC_SERIES.map((series, index) => ({
   id: index + 1,
@@ -9,8 +9,8 @@ export const fallbackFabrics = FABRIC_SERIES.map((series, index) => ({
   description: series.description,
   privacy: Math.max(1, Math.round(series.opacity / 10)),
   sunControl: Math.max(1, Math.round(series.opacity / 10)),
-  heatInsulation: series.features.some((feature) => feature.includes("ısı")) ? 8 : 4,
-  cleaning: series.features.some((feature) => feature.toLowerCase().includes("temiz")) ? 8 : 6,
+  heatInsulation: series.features.some(feature => feature.includes("ısı")) ? 8 : 4,
+  cleaning: series.features.some(feature => feature.toLowerCase().includes("temiz")) ? 8 : 6,
   durability: Math.min(10, Math.max(5, Math.round(series.weight / 30))),
   blackout: Math.max(1, Math.round(series.opacity / 10)),
   usageArea: "Cam balkon, PVC pencere, alüminyum doğrama ve sürgülü kapı uygulamaları",
@@ -39,11 +39,20 @@ export const fallbackDealers = [
   },
 ];
 
+type DemoOrderStatus =
+  | "pending"
+  | "confirmed"
+  | "production"
+  | "preparing"
+  | "shipping"
+  | "delivered"
+  | "cancelled";
+
 type DemoOrder = {
   id: number;
   userId: number;
   orderNumber: string;
-  status: "pending";
+  status: DemoOrderStatus;
   fabricId: number;
   fabricName: string;
   fabricColor: string;
