@@ -18,6 +18,7 @@ import {
   Wrench,
   ShoppingCart,
   MapPin,
+  LayoutDashboard,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useState } from "react";
@@ -39,20 +40,20 @@ export default function Layout({ children }: { children: React.ReactNode }) {
   const { theme, toggleTheme } = useTheme();
   const [location] = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const accountHref = user?.role === "admin" ? "/yonetici" : "/hesabim";
+  const accountLabel = user?.role === "admin" ? "Yönetim" : user?.name || "Hesabım";
+  const AccountIcon = user?.role === "admin" ? LayoutDashboard : User;
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      {/* Header */}
       <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
-          {/* Logo */}
           <Link href="/" className="group h-11 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]">
             <BrandLogo className="h-11" />
           </Link>
 
-          {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-1">
-            {navItems.slice(0, 6).map((item) => (
+            {navItems.slice(0, 6).map(item => (
               <Link key={item.href} href={item.href}>
                 <span
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer ${
@@ -67,45 +68,33 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             ))}
           </nav>
 
-          {/* Right Actions */}
           <div className="flex items-center gap-2">
             <div className="hidden xl:flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1.5 text-[10px] font-semibold text-primary">
               <span className="h-1.5 w-1.5 rounded-full bg-secondary animate-pulse" />
               AI ÇEVRİMİÇİ
             </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={toggleTheme}
-              className="rounded-lg"
-            >
+            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-lg">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </Button>
 
             {isAuthenticated ? (
               <div className="hidden sm:flex items-center gap-2">
-                <Link href="/hesabim">
+                <Link href={accountHref}>
                   <Button variant="ghost" size="sm" className="rounded-lg gap-2">
-                    <User className="h-4 w-4" />
-                    <span className="max-w-24 truncate">{user?.name || "Hesabım"}</span>
+                    <AccountIcon className="h-4 w-4" />
+                    <span className="max-w-28 truncate">{accountLabel}</span>
                   </Button>
                 </Link>
-                <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg">
+                <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg" aria-label="Çıkış yap">
                   <LogOut className="h-4 w-4" />
                 </Button>
               </div>
             ) : (
-              <Button
-                variant="default"
-                size="sm"
-                onClick={() => startLogin()}
-                className="hidden sm:flex rounded-lg"
-              >
+              <Button variant="default" size="sm" onClick={() => startLogin()} className="hidden sm:flex rounded-lg">
                 Giriş Yap
               </Button>
             )}
 
-            {/* Mobile Menu */}
             <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
               <SheetTrigger asChild>
                 <Button variant="ghost" size="icon" className="lg:hidden rounded-lg">
@@ -123,7 +112,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     </Button>
                   </div>
                   <nav className="flex-1 p-4 space-y-1">
-                    {navItems.map((item) => {
+                    {navItems.map(item => {
                       const Icon = item.icon;
                       return (
                         <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
@@ -144,10 +133,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                   <div className="p-4 border-t space-y-2">
                     {isAuthenticated ? (
                       <>
-                        <Link href="/hesabim" onClick={() => setMobileOpen(false)}>
+                        <Link href={accountHref} onClick={() => setMobileOpen(false)}>
                           <Button variant="outline" className="w-full justify-start gap-2">
-                            <User className="h-4 w-4" />
-                            {user?.name || "Hesabım"}
+                            <AccountIcon className="h-4 w-4" />
+                            {accountLabel}
                           </Button>
                         </Link>
                         <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}>
@@ -157,7 +146,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                       </>
                     ) : (
                       <Button className="w-full" onClick={() => startLogin()}>
-                        Giriş Yap
+                        Giriş Yap / Kayıt Ol
                       </Button>
                     )}
                   </div>
@@ -168,17 +157,13 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1">{children}</main>
 
-      {/* Footer */}
       <footer className="border-t border-border/50 bg-muted/30">
         <div className="container py-12">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <BrandLogo className="h-12" />
-              </div>
+              <div className="flex items-center gap-2"><BrandLogo className="h-12" /></div>
               <p className="text-sm text-muted-foreground leading-relaxed">
                 Akıllı ölçü ve demonte ürün platformu. Doğru ölçüden kolay kuruluma kadar güvenilir dijital deneyim.
               </p>
