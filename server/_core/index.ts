@@ -58,7 +58,6 @@ async function startServer() {
 
     try {
       const response = await invokeLLM({
-        max_tokens: 12,
         messages: [{ role: "user", content: "Sadece TAMAM yaz." }],
       });
       const content = response.choices?.[0]?.message?.content;
@@ -70,11 +69,23 @@ async function startServer() {
       });
     } catch (error) {
       console.error("[AI] Connection test failed:", error);
+      const rawMessage = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+      const publicError = status.provider === "openai"
+        ? rawMessage.includes("401")
+          ? "OpenAI API anahtarı geçersiz veya iptal edilmiş. Yeni bir proje API anahtarı oluşturup Hostinger'a kaydedin."
+          : rawMessage.includes("429") || rawMessage.includes("quota") || rawMessage.includes("billing") || rawMessage.includes("credit")
+            ? "OpenAI API hesabında kullanılabilir kredi, kota veya aktif faturalandırma bulunmuyor."
+            : rawMessage.includes("404") || rawMessage.includes("model")
+              ? `OpenAI modeli kullanılamıyor. Hostinger'daki OPENAI_MODEL değerini gpt-5-mini olarak kontrol edin.`
+              : rawMessage.includes("unsupported parameter") || rawMessage.includes("max_tokens")
+                ? "OpenAI modeliyle uyumsuz eski bir istek parametresi kullanıldı. Uygulamayı en son sürüme yeniden dağıtın."
+                : "OpenAI API bağlantısı başarısız oldu. Ayrıntı Hostinger çalışma zamanı günlüklerine kaydedildi."
+        : toPublicLLMError(error);
       res.status(502).json({
         ok: false,
         provider: status.provider,
         model: status.model,
-        error: toPublicLLMError(error),
+        error: publicError,
       });
     }
   });
