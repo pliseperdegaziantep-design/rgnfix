@@ -31,5 +31,8 @@ jobs:
       - name: TypeScript check
         run: pnpm check
 
+      - name: Measurement rule tests
+        run: pnpm test
+
       - name: Production build
         run: pnpm build
