@@ -1,15 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CheckCircle2,
-  MessageCircle,
-  RefreshCcw,
-  Ruler,
-  Volume2,
-  VolumeX,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, MessageCircle, RefreshCcw, Ruler, Volume2, VolumeX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -65,7 +56,7 @@ export default function MeasurementAssistant() {
   const [phase, setPhase] = useState<MeasurementPhase>("width");
   const [applicationArea, setApplicationArea] = useState<ApplicationArea | "">("");
   const [mountType, setMountType] = useState<MountingType | "">("");
-  const [caseType, setCaseType] = useState("kalin");
+  const [caseType, setCaseType] = useState("");
   const [pieceCount, setPieceCount] = useState(1);
   const [panels, setPanels] = useState<MeasurementPanelDraft[]>([createPanel(0)]);
   const [currentPanelIndex, setCurrentPanelIndex] = useState(0);
@@ -103,22 +94,22 @@ export default function MeasurementAssistant() {
 
   const liveInstruction = useMemo(() => {
     if (screen === "setup") {
-      return "Uygulama alanını, montaj tipini ve toplam cam sayısını seçin. Ardından ölçüye başlayacağız.";
+      if (!applicationArea) return "Önce uygulama alanını seçin.";
+      if (!mountType) return "Şimdi montaj tipini seçin.";
+      if (!caseType) return "Tek camsa kalın kasa, çift camsa slim kasa seçin.";
+      return "Son olarak toplam cam sayısını seçip ölçüye geçin.";
     }
     if (screen === "measure") {
       if (phase === "width") {
-        const openingText = applicationArea === "cam_balkon"
-          ? "Bu kanat açılıyorsa açılır kanat seçeneğini işaretleyin."
-          : "";
-        return `${currentLabel} için önce en ölçüsünü alıyoruz. Çelik metreyi profilin dışından değil, camın sol iç kenarından sağ iç kenarına düz tutun. Cam ölçüsünü santimetre olarak yazın. ${openingText}`.trim();
+        return applicationArea === "cam_balkon"
+          ? `${currentLabel}: Camın net enini ölçün. Açılır kanatsa kutuyu işaretleyin.`
+          : `${currentLabel}: Camın net enini ölçüp santimetre olarak yazın.`;
       }
-      return `${currentLabel} için şimdi boy ölçüsünü alıyoruz. Çelik metreyi camın üst iç kenarından alt iç kenarına dik tutun. Cam ölçüsünü santimetre olarak yazın.`;
+      return `${currentLabel}: Şimdi camın net boyunu ölçüp yazın.`;
     }
-    if (screen === "done") {
-      return "Ölçüler tamamlandı. Fiyat hesaplamaya geçebilirsiniz.";
-    }
+    if (screen === "done") return "Ölçüler tamamlandı. Fiyat hesaplamaya geçebilirsiniz.";
     return "";
-  }, [applicationArea, currentLabel, phase, screen]);
+  }, [applicationArea, caseType, currentLabel, mountType, phase, screen]);
 
   useEffect(() => {
     if (!liveInstruction || voiceMuted || screen === "intro") return;
@@ -126,7 +117,7 @@ export default function MeasurementAssistant() {
     lastSpokenRef.current = liveInstruction;
     const timer = window.setTimeout(() => {
       void voiceRef.current?.speak(liveInstruction).catch(() => setVoiceState("error"));
-    }, 180);
+    }, 250);
     return () => window.clearTimeout(timer);
   }, [liveInstruction, screen, voiceMuted]);
 
@@ -155,6 +146,7 @@ export default function MeasurementAssistant() {
   const selectArea = (value: ApplicationArea) => {
     setApplicationArea(value);
     setMountType("");
+    setCaseType("");
     setPanels(Array.from({ length: pieceCount }, (_, index) => createPanel(index)));
     setCurrentPanelIndex(0);
     setPhase("width");
@@ -178,7 +170,7 @@ export default function MeasurementAssistant() {
 
   const beginMeasurement = () => {
     if (!applicationArea || !mountType || !caseType || !validateMountingType(applicationArea, mountType).valid) {
-      setError("Uygulama alanı ve montaj tipini seçin.");
+      setError("Uygulama alanı, montaj tipi ve cam tipini seçin.");
       return;
     }
     setCurrentPanelIndex(0);
@@ -224,13 +216,7 @@ export default function MeasurementAssistant() {
 
   const transferToPriceCalculator = () => {
     if (!applicationArea || !mountType || calculatedMeasurements.length === 0) return;
-    const payload = createTransferPayload({
-      applicationArea,
-      mountType,
-      caseType,
-      measurements: calculatedMeasurements,
-      recordingUrl: recordingUrl || undefined,
-    });
+    const payload = createTransferPayload({ applicationArea, mountType, caseType, measurements: calculatedMeasurements, recordingUrl: recordingUrl || undefined });
     sessionStorage.setItem(TRANSFER_KEY, JSON.stringify(payload));
     if (recordingUrl) sessionStorage.setItem(RECORDING_KEY, recordingUrl);
     const first = calculatedMeasurements[0];
@@ -259,7 +245,7 @@ export default function MeasurementAssistant() {
     setPhase("width");
     setApplicationArea("");
     setMountType("");
-    setCaseType("kalin");
+    setCaseType("");
     setPieceCount(1);
     setPanels([createPanel(0)]);
     setCurrentPanelIndex(0);
@@ -270,13 +256,7 @@ export default function MeasurementAssistant() {
   };
 
   const voiceButton = (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      onClick={() => setVoiceMuted(value => !value)}
-      className="gap-2"
-    >
+    <Button type="button" variant="outline" size="sm" onClick={() => setVoiceMuted(value => !value)} className="gap-2">
       {voiceMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
       {voiceMuted ? "Sesi Aç" : "Sessize Al"}
     </Button>
@@ -289,7 +269,7 @@ export default function MeasurementAssistant() {
           <CardContent className="p-7 text-center sm:p-10">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Ruler className="h-7 w-7" /></div>
             <h1 className="mt-5 text-3xl font-serif font-bold">Canlı Ölçü Asistanı</h1>
-            <p className="mt-3 text-sm leading-6 text-muted-foreground">Çelik metrenizi hazırlayın. Önce EN, sonra BOY ölçüsünü alacağız.</p>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">Sizi adım adım yönlendireceğiz. Çelik metrenizi hazırlayın.</p>
             <Button onClick={() => void startAssistant()} className="mt-7 h-12 w-full gap-2 text-base">Ölçüye Başla <ArrowRight className="h-4 w-4" /></Button>
             <p className="mt-3 text-[11px] text-muted-foreground">Ses yapay zekâ tarafından oluşturulur.</p>
           </CardContent>
@@ -309,7 +289,7 @@ export default function MeasurementAssistant() {
         <Card>
           <CardContent className="space-y-5 p-5 sm:p-7">
             <div className="space-y-2">
-              <Label>Uygulama alanı</Label>
+              <Label>1. Uygulama alanı</Label>
               <select value={applicationArea} onChange={event => selectArea(event.target.value as ApplicationArea)} className="h-12 w-full rounded-xl border border-input bg-background px-3">
                 <option value="">Seçin</option>
                 {APPLICATION_AREAS.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
@@ -317,36 +297,43 @@ export default function MeasurementAssistant() {
             </div>
 
             {applicationArea && (
-              <>
-                <div className="space-y-2">
-                  <Label>Montaj tipi</Label>
-                  <select value={mountType} onChange={event => setMountType(event.target.value as MountingType)} className="h-12 w-full rounded-xl border border-input bg-background px-3">
-                    <option value="">Seçin</option>
-                    {availableMounts.map(option => <option key={option} value={option}>{MOUNTING_LABELS[option]}</option>)}
-                  </select>
-                </div>
+              <div className="space-y-2">
+                <Label>2. Montaj seçeneği</Label>
+                <select value={mountType} onChange={event => { setMountType(event.target.value as MountingType); setCaseType(""); }} className="h-12 w-full rounded-xl border border-input bg-background px-3">
+                  <option value="">Seçin</option>
+                  {availableMounts.map(option => <option key={option} value={option}>{MOUNTING_LABELS[option]}</option>)}
+                </select>
+              </div>
+            )}
 
-                <div className="space-y-2">
-                  <Label>Kasa tipi</Label>
-                  <select value={caseType} onChange={event => setCaseType(event.target.value)} className="h-12 w-full rounded-xl border border-input bg-background px-3">
-                    {CASE_TYPES.map(option => <option key={option.id} value={option.id}>{option.name}</option>)}
-                  </select>
-                </div>
+            {applicationArea && mountType && (
+              <div className="space-y-2">
+                <Label>3. Cam / kasa tipi</Label>
+                <select value={caseType} onChange={event => setCaseType(event.target.value)} className="h-12 w-full rounded-xl border border-input bg-background px-3">
+                  <option value="">Seçin</option>
+                  {CASE_TYPES.map(option => (
+                    <option key={option.id} value={option.id}>
+                      {option.id === "kalin" ? "Tek Cam – Kalın Kasa" : "Çift Cam – Slim Kasa"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-                <div className="space-y-2">
-                  <Label>{applicationArea === "cam_balkon" ? "Toplam kanat sayısı" : "Toplam cam/parça sayısı"}</Label>
-                  <select value={pieceCount} onChange={event => syncPieceCount(Number(event.target.value))} className="h-12 w-full rounded-xl border border-input bg-background px-3">
-                    {PIECE_COUNTS.map(count => <option key={count} value={count}>{count}</option>)}
-                  </select>
-                </div>
-              </>
+            {applicationArea && mountType && caseType && (
+              <div className="space-y-2">
+                <Label>4. {applicationArea === "cam_balkon" ? "Toplam kanat sayısı" : "Toplam cam / parça sayısı"}</Label>
+                <select value={pieceCount} onChange={event => syncPieceCount(Number(event.target.value))} className="h-12 w-full rounded-xl border border-input bg-background px-3">
+                  {PIECE_COUNTS.map(count => <option key={count} value={count}>{count}</option>)}
+                </select>
+              </div>
             )}
 
             {error && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-            <Button onClick={beginMeasurement} disabled={!applicationArea || !mountType} className="h-12 w-full gap-2">Ölçüye Geç <ArrowRight className="h-4 w-4" /></Button>
+            <Button onClick={beginMeasurement} disabled={!applicationArea || !mountType || !caseType} className="h-12 w-full gap-2">Ölçüye Geç <ArrowRight className="h-4 w-4" /></Button>
           </CardContent>
         </Card>
-        {voiceState === "error" && <p className="mt-3 text-center text-xs text-amber-700">Canlı ses bağlantısı açılamadı. Yazılı yönlendirmeyle devam edebilirsiniz.</p>}
+        {voiceState === "error" && <p className="mt-3 text-center text-xs text-amber-700">Canlı ses açılamadı. Yazılı yönlendirmeyle devam edebilirsiniz.</p>}
       </div>
     );
   }
@@ -356,68 +343,45 @@ export default function MeasurementAssistant() {
     return (
       <div className="container max-w-5xl py-6">
         <div className="mb-5 flex items-center justify-between gap-3">
-          <div>
-            <p className="text-sm font-medium text-primary">{completedCount}/{pieceCount} tamamlandı</p>
-            <h1 className="text-2xl font-bold">{currentLabel}</h1>
-          </div>
+          <div><p className="text-sm font-medium text-primary">{completedCount}/{pieceCount} tamamlandı</p><h1 className="text-2xl font-bold">{currentLabel}</h1></div>
           {voiceButton}
         </div>
-
         <div className="grid gap-5 lg:grid-cols-2">
           <Card>
             <CardContent className="space-y-5 p-5 sm:p-7">
               {applicationArea === "cam_balkon" && (
                 <Label className="flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm">
                   <input type="checkbox" checked={currentPanel.isOpeningPanel} onChange={event => setOpeningPanel(event.target.checked)} className="h-4 w-4" />
-                  <span><strong>Açılır kanat</strong><span className="block text-xs text-muted-foreground">Yalnızca açılır kanatsa işaretleyin.</span></span>
+                  <span><strong>Açılır kanat</strong><span className="block text-xs text-muted-foreground">Yalnızca bu kanat açılıyorsa işaretleyin.</span></span>
                 </Label>
               )}
-
               <div className="rounded-2xl bg-primary/5 p-5 text-center">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">{phase === "width" ? "Önce EN" : "Şimdi BOY"}</p>
                 <p className="mt-2 text-sm leading-6">{phase === "width" ? "Camın sol iç kenarından sağ iç kenarına ölçün." : "Camın üst iç kenarından alt iç kenarına ölçün."}</p>
               </div>
-
               <div className="space-y-2">
                 <Label htmlFor="measurement-value">{phase === "width" ? "EN ölçüsü (cm)" : "BOY ölçüsü (cm)"}</Label>
-                <Input
-                  id="measurement-value"
-                  inputMode="decimal"
-                  autoFocus
-                  placeholder={phase === "width" ? "Örn: 51" : "Örn: 178"}
-                  value={value}
-                  onChange={event => updateCurrentPanel(phase === "width" ? "measuredWidth" : "measuredHeight", event.target.value)}
-                  className="h-16 text-center text-2xl font-semibold"
-                />
-                <p className="text-center text-xs text-muted-foreground">Net cam ölçüsünü yazın.</p>
+                <Input id="measurement-value" inputMode="decimal" autoFocus placeholder={phase === "width" ? "Örn: 51" : "Örn: 178"} value={value} onChange={event => updateCurrentPanel(phase === "width" ? "measuredWidth" : "measuredHeight", event.target.value)} className="h-16 text-center text-2xl font-semibold" />
+                <p className="text-center text-xs text-muted-foreground">Net cam ölçüsünü değiştirmeden yazın.</p>
               </div>
-
               {error && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
-
               {phase === "width" ? (
                 <Button onClick={saveWidth} className="h-12 w-full gap-2">Eni Kaydet, Boya Geç <ArrowRight className="h-4 w-4" /></Button>
               ) : (
                 <Button onClick={saveHeight} className="h-12 w-full gap-2"><CheckCircle2 className="h-4 w-4" /> Ölçüyü Kaydet</Button>
               )}
-
               <Button variant="ghost" onClick={() => {
                 if (phase === "height") setPhase("width");
-                else if (currentPanelIndex > 0) {
-                  setCurrentPanelIndex(index => index - 1);
-                  setPhase("width");
-                } else setScreen("setup");
+                else if (currentPanelIndex > 0) { setCurrentPanelIndex(index => index - 1); setPhase("width"); }
+                else setScreen("setup");
                 lastSpokenRef.current = "";
               }} className="w-full gap-2"><ArrowLeft className="h-4 w-4" /> Geri</Button>
             </CardContent>
           </Card>
-
           <LiveMeasurementCamera
             mode={phase}
             instruction={phase === "width" ? "Çelik metreyi camdan cama yatay ve düz tutun." : "Çelik metreyi camdan cama dik ve gergin tutun."}
-            onRecordingSaved={recording => {
-              setRecordingUrl(recording.url);
-              sessionStorage.setItem(RECORDING_KEY, recording.url);
-            }}
+            onRecordingSaved={recording => { setRecordingUrl(recording.url); sessionStorage.setItem(RECORDING_KEY, recording.url); }}
           />
         </div>
       </div>
@@ -430,7 +394,6 @@ export default function MeasurementAssistant() {
         <div><p className="text-sm font-medium text-primary">Tamamlandı</p><h1 className="text-2xl font-bold">Ölçüler Hazır</h1></div>
         {voiceButton}
       </div>
-
       <Card>
         <CardHeader><CardTitle className="text-lg">Ölçüler</CardTitle></CardHeader>
         <CardContent className="space-y-3">
@@ -443,7 +406,6 @@ export default function MeasurementAssistant() {
           {recordingUrl && <div className="rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">Ölçüm kaydı siparişe eklenmeye hazır.</div>}
         </CardContent>
       </Card>
-
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <Button onClick={transferToPriceCalculator} className="h-12 gap-2">Fiyat Hesaplamaya Geç <ArrowRight className="h-4 w-4" /></Button>
         <Button variant="outline" onClick={sendToWhatsApp} className="h-12 gap-2"><MessageCircle className="h-4 w-4" /> WhatsApp’tan Gönder</Button>
