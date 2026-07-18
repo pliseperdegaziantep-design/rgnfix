@@ -1,0 +1,45 @@
+{
+  "name": "RGNFIX — Akıllı Ölçü ve Sipariş",
+  "short_name": "RGNFIX",
+  "description": "Plise perde ölçü, fiyat, sipariş, takip ve montaj destek platformu.",
+  "lang": "tr-TR",
+  "dir": "ltr",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0D1B2A",
+  "theme_color": "#0D1B2A",
+  "categories": ["shopping", "business", "utilities"],
+  "icons": [
+    {
+      "src": "/brand/rgnfix-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/brand/rgnfix-mark.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fiyat Hesapla",
+      "short_name": "Fiyat",
+      "url": "/fiyat-hesapla"
+    },
+    {
+      "name": "Siparişlerim",
+      "short_name": "Siparişler",
+      "url": "/hesabim"
+    },
+    {
+      "name": "Ölçü Asistanı",
+      "short_name": "Ölçü",
+      "url": "/olcu-asistani"
+    }
+  ]
+}
