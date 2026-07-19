@@ -28,7 +28,7 @@ const TRANSFER_KEY = "rgnfix:measurement-transfer";
 const RECORDING_KEY = "rgnfix:measurement-recording";
 const PIECE_COUNTS = Array.from({ length: 30 }, (_, index) => index + 1);
 
-type Screen = "intro" | "setup" | "measure" | "done";
+type Screen = "intro" | "setup" | "measure" | "confirm" | "done";
 type MeasurementPhase = "width" | "height";
 
 function createPanel(index: number): MeasurementPanelDraft {
@@ -60,6 +60,8 @@ export default function MeasurementAssistant() {
   const [pieceCount, setPieceCount] = useState(1);
   const [panels, setPanels] = useState<MeasurementPanelDraft[]>([createPanel(0)]);
   const [currentPanelIndex, setCurrentPanelIndex] = useState(0);
+  const [confirmationIndex, setConfirmationIndex] = useState(0);
+  const [confirmationPhase, setConfirmationPhase] = useState<MeasurementPhase>("width");
   const [voiceMuted, setVoiceMuted] = useState(false);
   const [voiceState, setVoiceState] = useState<VoiceState>("idle");
   const [recordingUrl, setRecordingUrl] = useState("");
@@ -67,6 +69,7 @@ export default function MeasurementAssistant() {
 
   const availableMounts = applicationArea ? MOUNTING_OPTIONS[applicationArea] : [];
   const currentPanel = panels[currentPanelIndex];
+  const confirmationPanel = panels[confirmationIndex];
   const completedCount = panels.filter(panel => panel.completed).length;
 
   const calculatedMeasurements = useMemo(() => {
@@ -88,15 +91,18 @@ export default function MeasurementAssistant() {
     voiceRef.current?.setMuted(voiceMuted);
   }, [voiceMuted]);
 
-  const currentLabel = applicationArea === "cam_balkon"
-    ? `${currentPanelIndex + 1}. kanat`
-    : `${currentPanelIndex + 1}. parça`;
+  const labelForIndex = (index: number) => applicationArea === "cam_balkon"
+    ? `${index + 1}. kanat`
+    : `${index + 1}. parça`;
+
+  const currentLabel = labelForIndex(currentPanelIndex);
+  const confirmationLabel = labelForIndex(confirmationIndex);
 
   const liveInstruction = useMemo(() => {
     if (screen === "setup") {
       if (!applicationArea) return "Önce uygulama alanını seçin.";
       if (!mountType) return "Şimdi montaj tipini seçin.";
-      if (!caseType) return "Tek camsa kalın kasa, çift camsa slim kasa seçin.";
+      if (!caseType) return "Tek camsa standart kasa, çift camsa slim kasa seçin.";
       return "Son olarak toplam cam sayısını seçip ölçüye geçin.";
     }
     if (screen === "measure") {
@@ -105,11 +111,16 @@ export default function MeasurementAssistant() {
           ? `${currentLabel}: Camın net enini ölçün. Açılır kanatsa kutuyu işaretleyin.`
           : `${currentLabel}: Camın net enini ölçüp santimetre olarak yazın.`;
       }
-      return `${currentLabel}: Şimdi camın net boyunu ölçüp yazın.`;
+      return `${currentLabel}: Şimdi camın net boyunu ölçüp santimetre olarak yazın.`;
     }
-    if (screen === "done") return "Ölçüler tamamlandı. Fiyat hesaplamaya geçebilirsiniz.";
+    if (screen === "confirm" && confirmationPanel) {
+      const rawValue = confirmationPhase === "width" ? confirmationPanel.measuredWidth : confirmationPanel.measuredHeight;
+      const dimension = confirmationPhase === "width" ? "en" : "boy";
+      return `${confirmationLabel} ${dimension} ölçüsü ${rawValue} santimetre. Doğru mu?`;
+    }
+    if (screen === "done") return "Tüm ölçüler müşteriyle teyit edildi. Şimdi fiyat hesaplamaya geçebilirsiniz.";
     return "";
-  }, [applicationArea, caseType, currentLabel, mountType, phase, screen]);
+  }, [applicationArea, caseType, confirmationLabel, confirmationPanel, confirmationPhase, currentLabel, mountType, phase, screen]);
 
   useEffect(() => {
     if (!liveInstruction || voiceMuted || screen === "intro") return;
@@ -123,7 +134,7 @@ export default function MeasurementAssistant() {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "smooth" });
-  }, [screen, currentPanelIndex, phase]);
+  }, [screen, currentPanelIndex, phase, confirmationIndex, confirmationPhase]);
 
   const startAssistant = async () => {
     setScreen("setup");
@@ -192,6 +203,13 @@ export default function MeasurementAssistant() {
     }
   };
 
+  const startConfirmation = () => {
+    setConfirmationIndex(0);
+    setConfirmationPhase("width");
+    setScreen("confirm");
+    lastSpokenRef.current = "";
+  };
+
   const saveHeight = () => {
     if (!applicationArea || !currentPanel) return;
     try {
@@ -205,7 +223,9 @@ export default function MeasurementAssistant() {
         setPhase("width");
         lastSpokenRef.current = "";
       } else {
-        setScreen("done");
+        setConfirmationIndex(0);
+        setConfirmationPhase("width");
+        setScreen("confirm");
         lastSpokenRef.current = "";
       }
       setError("");
@@ -214,8 +234,33 @@ export default function MeasurementAssistant() {
     }
   };
 
+  const confirmCurrentValue = () => {
+    if (confirmationPhase === "width") {
+      setConfirmationPhase("height");
+      lastSpokenRef.current = "";
+      return;
+    }
+    if (confirmationIndex < panels.length - 1) {
+      setConfirmationIndex(index => index + 1);
+      setConfirmationPhase("width");
+      lastSpokenRef.current = "";
+      return;
+    }
+    setScreen("done");
+    lastSpokenRef.current = "";
+  };
+
+  const editConfirmedValue = () => {
+    setCurrentPanelIndex(confirmationIndex);
+    setPhase(confirmationPhase);
+    setPanels(current => current.map((panel, index) => index === confirmationIndex ? { ...panel, completed: false } : panel));
+    setScreen("measure");
+    lastSpokenRef.current = "";
+    setError("");
+  };
+
   const transferToPriceCalculator = () => {
-    if (!applicationArea || !mountType || calculatedMeasurements.length === 0) return;
+    if (!applicationArea || !mountType || calculatedMeasurements.length === 0 || screen !== "done") return;
     const payload = createTransferPayload({ applicationArea, mountType, caseType, measurements: calculatedMeasurements, recordingUrl: recordingUrl || undefined });
     sessionStorage.setItem(TRANSFER_KEY, JSON.stringify(payload));
     if (recordingUrl) sessionStorage.setItem(RECORDING_KEY, recordingUrl);
@@ -249,6 +294,8 @@ export default function MeasurementAssistant() {
     setPieceCount(1);
     setPanels([createPanel(0)]);
     setCurrentPanelIndex(0);
+    setConfirmationIndex(0);
+    setConfirmationPhase("width");
     setRecordingUrl("");
     setError("");
     sessionStorage.removeItem(TRANSFER_KEY);
@@ -285,7 +332,6 @@ export default function MeasurementAssistant() {
           <div><p className="text-sm font-medium text-primary">1. Adım</p><h1 className="text-2xl font-bold">Kısa Bilgiler</h1></div>
           {voiceButton}
         </div>
-
         <Card>
           <CardContent className="space-y-5 p-5 sm:p-7">
             <div className="space-y-2">
@@ -295,7 +341,6 @@ export default function MeasurementAssistant() {
                 {APPLICATION_AREAS.map(area => <option key={area.id} value={area.id}>{area.name}</option>)}
               </select>
             </div>
-
             {applicationArea && (
               <div className="space-y-2">
                 <Label>2. Montaj seçeneği</Label>
@@ -305,21 +350,15 @@ export default function MeasurementAssistant() {
                 </select>
               </div>
             )}
-
             {applicationArea && mountType && (
               <div className="space-y-2">
                 <Label>3. Cam / kasa tipi</Label>
                 <select value={caseType} onChange={event => setCaseType(event.target.value)} className="h-12 w-full rounded-xl border border-input bg-background px-3">
                   <option value="">Seçin</option>
-                  {CASE_TYPES.map(option => (
-                    <option key={option.id} value={option.id}>
-                      {option.id === "kalin" ? "Tek Cam – Kalın Kasa" : "Çift Cam – Slim Kasa"}
-                    </option>
-                  ))}
+                  {CASE_TYPES.map(option => <option key={option.id} value={option.id}>{option.id === "kalin" ? "Tek Cam – Standart Kasa" : "Çift Cam – Slim Kasa"}</option>)}
                 </select>
               </div>
             )}
-
             {applicationArea && mountType && caseType && (
               <div className="space-y-2">
                 <Label>4. {applicationArea === "cam_balkon" ? "Toplam kanat sayısı" : "Toplam cam / parça sayısı"}</Label>
@@ -328,7 +367,6 @@ export default function MeasurementAssistant() {
                 </select>
               </div>
             )}
-
             {error && <div className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive">{error}</div>}
             <Button onClick={beginMeasurement} disabled={!applicationArea || !mountType || !caseType} className="h-12 w-full gap-2">Ölçüye Geç <ArrowRight className="h-4 w-4" /></Button>
           </CardContent>
@@ -388,14 +426,40 @@ export default function MeasurementAssistant() {
     );
   }
 
+  if (screen === "confirm" && confirmationPanel) {
+    const value = confirmationPhase === "width" ? confirmationPanel.measuredWidth : confirmationPanel.measuredHeight;
+    const confirmedSteps = confirmationIndex * 2 + (confirmationPhase === "height" ? 1 : 0);
+    const totalSteps = panels.length * 2;
+    return (
+      <div className="container max-w-2xl py-8">
+        <div className="mb-5 flex items-center justify-between gap-3">
+          <div><p className="text-sm font-medium text-primary">Ölçü Sağlama {confirmedSteps + 1}/{totalSteps}</p><h1 className="text-2xl font-bold">{confirmationLabel}</h1></div>
+          {voiceButton}
+        </div>
+        <Card className="border-primary/30 shadow-lg">
+          <CardContent className="space-y-6 p-6 text-center sm:p-8">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary"><CheckCircle2 className="h-7 w-7" /></div>
+            <div>
+              <p className="text-sm font-medium text-muted-foreground">{confirmationPhase === "width" ? "EN ÖLÇÜSÜ" : "BOY ÖLÇÜSÜ"}</p>
+              <p className="mt-2 text-4xl font-bold">{value} cm</p>
+              <p className="mt-3 text-sm text-muted-foreground">Yapay zekâ ölçüyü sesli okuyor. Müşteriyle teyit ettikten sonra devam edin.</p>
+            </div>
+            <Button onClick={confirmCurrentValue} className="h-12 w-full gap-2"><CheckCircle2 className="h-4 w-4" /> Evet, Doğru</Button>
+            <Button variant="outline" onClick={editConfirmedValue} className="h-12 w-full gap-2"><ArrowLeft className="h-4 w-4" /> Yanlış, Düzelt</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-3xl py-8">
       <div className="mb-6 flex items-center justify-between gap-3">
-        <div><p className="text-sm font-medium text-primary">Tamamlandı</p><h1 className="text-2xl font-bold">Ölçüler Hazır</h1></div>
+        <div><p className="text-sm font-medium text-primary">Teyit Tamamlandı</p><h1 className="text-2xl font-bold">Ölçüler Onaylandı</h1></div>
         {voiceButton}
       </div>
       <Card>
-        <CardHeader><CardTitle className="text-lg">Ölçüler</CardTitle></CardHeader>
+        <CardHeader><CardTitle className="text-lg">Onaylanan Ölçüler</CardTitle></CardHeader>
         <CardContent className="space-y-3">
           {calculatedMeasurements.map(measurement => (
             <div key={measurement.index} className="flex items-center justify-between gap-3 rounded-xl border p-4">
@@ -410,6 +474,7 @@ export default function MeasurementAssistant() {
         <Button onClick={transferToPriceCalculator} className="h-12 gap-2">Fiyat Hesaplamaya Geç <ArrowRight className="h-4 w-4" /></Button>
         <Button variant="outline" onClick={sendToWhatsApp} className="h-12 gap-2"><MessageCircle className="h-4 w-4" /> WhatsApp’tan Gönder</Button>
       </div>
+      <Button variant="outline" onClick={startConfirmation} className="mt-3 w-full gap-2"><CheckCircle2 className="h-4 w-4" /> Ölçüleri Tekrar Teyit Et</Button>
       <Button variant="ghost" onClick={resetAll} className="mt-3 w-full gap-2 text-muted-foreground"><RefreshCcw className="h-4 w-4" /> Baştan Başla</Button>
     </div>
   );
