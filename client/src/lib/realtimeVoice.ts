@@ -6,7 +6,8 @@ type ErrorListener = (message: string) => void;
 
 const SESSION_INSTRUCTIONS = [
   "Sen RGNFIX canlı ürün ve ölçü danışmanısın.",
-  "Yalnızca Türkçe konuş; kelimeleri açık, doğru ve doğal telaffuz et.",
+  "Yalnızca Türkiye Türkçesi konuş; kelimeleri açık, doğru ve doğal telaffuz et.",
+  "Cam kelimesini C harfiyle cam olarak söyle, gam deme. Ölçü kelimesindeki ö ve ü seslerini doğru söyle.",
   "Sıcak, samimi ve profesyonel bir satış danışmanı gibi konuş.",
   "Her cevap en fazla iki kısa cümle olsun ve tek seferde en fazla bir soru sor.",
   "Müşteri konuşurken araya girme; sözünün bittiğinden emin olduktan sonra cevap ver.",
@@ -26,6 +27,8 @@ export class RealtimeVoiceGuide {
   private peer: RTCPeerConnection | null = null;
   private channel: RTCDataChannel | null = null;
   private audio: HTMLAudioElement | null = null;
+  private ttsAudio: HTMLAudioElement | null = null;
+  private ttsObjectUrl: string | null = null;
   private microphoneStream: MediaStream | null = null;
   private connectionPromise: Promise<void> | null = null;
   private muted = false;
@@ -60,6 +63,7 @@ export class RealtimeVoiceGuide {
     this.muted = muted;
     this.microphoneStream?.getAudioTracks().forEach(track => { track.enabled = !muted; });
     if (this.audio) this.audio.muted = muted;
+    if (this.ttsAudio) this.ttsAudio.muted = muted;
     if (muted) {
       this.cancel();
       this.setState("muted");
@@ -130,7 +134,7 @@ export class RealtimeVoiceGuide {
       }
       if (payload.type === "response.done") {
         this.setState(this.muted ? "muted" : "listening");
-        if (this.pendingSpeech && !this.muted) {
+        if (this.pendingSpeech && !this.muted && !this.ttsAudio) {
           const next = this.pendingSpeech;
           this.pendingSpeech = "";
           window.setTimeout(() => void this.speak(next), 250);
@@ -172,6 +176,52 @@ export class RealtimeVoiceGuide {
       throw new Error(payload?.error || `Canlı ses bağlantısı kurulamadı (${response.status}).`);
     }
     return response.text();
+  }
+
+  private releaseTtsAudio() {
+    if (this.ttsAudio) {
+      this.ttsAudio.pause();
+      this.ttsAudio.src = "";
+      this.ttsAudio.remove();
+      this.ttsAudio = null;
+    }
+    if (this.ttsObjectUrl) {
+      URL.revokeObjectURL(this.ttsObjectUrl);
+      this.ttsObjectUrl = null;
+    }
+  }
+
+  private async playTurkishTts(text: string) {
+    const response = await fetch("/api/ai/tts", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ text }),
+    });
+    if (!response.ok) {
+      const payload = await response.json().catch(() => null) as { error?: string } | null;
+      throw new Error(payload?.error || "Türkçe ses oluşturulamadı.");
+    }
+
+    this.releaseTtsAudio();
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const audio = document.createElement("audio");
+    audio.autoplay = true;
+    audio.controls = false;
+    audio.muted = this.muted;
+    audio.setAttribute("playsinline", "true");
+    audio.style.display = "none";
+    audio.src = objectUrl;
+    document.body.appendChild(audio);
+    this.ttsAudio = audio;
+    this.ttsObjectUrl = objectUrl;
+
+    await new Promise<void>((resolve, reject) => {
+      audio.addEventListener("ended", () => resolve(), { once: true });
+      audio.addEventListener("error", () => reject(new Error("Türkçe ses oynatılamadı.")), { once: true });
+      void audio.play().catch(reject);
+    }).finally(() => this.releaseTtsAudio());
   }
 
   async connect() {
@@ -270,30 +320,38 @@ export class RealtimeVoiceGuide {
     const cleaned = text.replace(/\s+/g, " ").trim();
     if (!cleaned || this.muted) return;
     await this.connect();
-    if (!this.channel || this.channel.readyState !== "open") return;
-    if (this.state === "speaking") {
+    if (this.state === "speaking" || this.ttsAudio) {
       this.pendingSpeech = cleaned;
       return;
     }
-    this.channel.send(JSON.stringify({
-      type: "response.create",
-      response: {
-        conversation: "auto",
-        output_modalities: ["audio"],
-        max_output_tokens: 70,
-        instructions: `Bu adımı Türkçe, açık ve yalnızca bir kısa cümleyle söyle: ${cleaned}`,
-      },
-    }));
+
+    this.setState("speaking");
+    try {
+      await this.playTurkishTts(cleaned);
+      this.transcriptListener?.({ role: "assistant", text: cleaned });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Türkçe ses oluşturulamadı.";
+      this.errorListener?.(message);
+    } finally {
+      this.setState(this.muted ? "muted" : "listening");
+      if (this.pendingSpeech && !this.muted) {
+        const next = this.pendingSpeech;
+        this.pendingSpeech = "";
+        window.setTimeout(() => void this.speak(next), 200);
+      }
+    }
   }
 
   cancel() {
     this.pendingSpeech = "";
+    this.releaseTtsAudio();
     if (this.state === "speaking" && this.channel?.readyState === "open") this.channel.send(JSON.stringify({ type: "response.cancel" }));
     if (this.state !== "error") this.setState(this.muted ? "muted" : this.channel?.readyState === "open" ? "listening" : "idle");
   }
 
   disconnect() {
     this.pendingSpeech = "";
+    this.releaseTtsAudio();
     this.channel?.close();
     this.microphoneStream?.getTracks().forEach(track => track.stop());
     this.peer?.getReceivers().forEach(receiver => receiver.track?.stop());
