@@ -108,7 +108,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               <SheetContent side="right" className="w-80 p-0">
                 <div className="flex flex-col h-full">
                   <div className="flex items-center justify-between p-4 border-b">
-                    <span className="font-serif text-lg font-semibold"><span className="font-black tracking-tight text-primary">RGN<span className="text-secondary">FIX</span></span></span>
+                    <BrandLogo className="h-10 max-w-[220px]" />
                     <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat"><X className="h-4 w-4" /></Button>
                   </div>
                   <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -186,7 +186,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           </div>
-          <div className="mt-8 pt-8 border-t border-border/50 text-center text-sm text-muted-foreground"><p>&copy; {new Date().getFullYear()} RGNFIX. Tüm hakları saklıdır.</p></div>
+          <div className="mt-8 pt-8 border-t border-border/50 text-center text-sm text-muted-foreground"><p>&copy; {new Date().getFullYear()} RGNFIX by Plise Perde Gaziantep. Tüm hakları saklıdır.</p></div>
         </div>
       </footer>
     </div>
