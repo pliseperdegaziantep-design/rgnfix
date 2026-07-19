@@ -17,10 +17,8 @@ import {
   Layers,
   Wrench,
   ShoppingCart,
-  MapPin,
   LayoutDashboard,
   Settings,
-  Camera,
   Grid2X2,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
@@ -34,10 +32,8 @@ const navItems = [
   { href: "/kumas-karsilastirma", label: "Plise Perde", icon: Layers },
   { href: "/sineklik", label: "Sineklik", icon: Grid2X2 },
   { href: "/renk-danismani", label: "Renk Danışmanı", icon: Palette },
-  { href: "/olcu-fotografi", label: "Kamera Denetimi", icon: Camera },
   { href: "/montaj-rehberi", label: "Montaj Rehberi", icon: Wrench },
   { href: "/siparis", label: "Sipariş", icon: ShoppingCart },
-  { href: "/bayi-haritasi", label: "Bayiler", icon: MapPin },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -165,7 +161,6 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link href="/kumas-karsilastirma"><span className="block hover:text-foreground transition-colors cursor-pointer">Plise Perde</span></Link>
                 <Link href="/sineklik"><span className="block hover:text-foreground transition-colors cursor-pointer">Sineklik</span></Link>
                 <Link href="/montaj-rehberi"><span className="block hover:text-foreground transition-colors cursor-pointer">Montaj Rehberi</span></Link>
-                <Link href="/bayi-haritasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Bayi Bul</span></Link>
               </div>
             </div>
             <div className="space-y-3">
