@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { Bot, Send, Sparkles, User } from "lucide-react";
 import { trpc } from "@/lib/trpc";
-import { Streamdown } from "streamdown";
 
 interface Message {
   role: "user" | "assistant";
@@ -12,7 +11,7 @@ interface Message {
 }
 
 const quickQuestions = [
-  "Cam balkonum için hangi ürün uygun?",
+  "Cam balkonum için hangi perde uygun?",
   "Pencere sineklik fiyatı nedir?",
   "Kapı sineklik fiyatı nedir?",
   "Kiracıyım, vidasız montaj istiyorum",
@@ -21,7 +20,18 @@ const quickQuestions = [
 ];
 
 const maintenanceMessage =
-  "Yapay zekâ danışmanımız geçici olarak kullanılamıyor. Ölçü, fiyat ve sipariş işlemlerinize diğer bölümlerden devam edebilirsiniz.";
+  "Şu anda kısa süreli bir bağlantı sorunu var. Ölçü ve fiyat bölümlerinden devam edebilirsiniz.";
+
+const advisorRule = [
+  "RGNFIX müşteri danışmanı olarak cevap ver.",
+  "Sadece plise perde, sineklik, ölçü, montaj, kasa, kumaş, fiyat ve sipariş hakkında konuş.",
+  "Tadilat, endüstriyel alan, fabrika, proje, inşaat veya ilgisiz kullanım alanlarından söz etme.",
+  "Müşteriyle doğal sohbet havasında konuş ama cevabın en fazla iki kısa cümle olsun.",
+  "Tek seferde yalnızca gerekli ürünü tanıt ve en fazla bir kısa soru sor.",
+  "Madde işareti, uzun açıklama, başlık ve teknik döküm kullanma.",
+  "Fiyatı tahmin etme; kesin fiyat için ölçü ve fiyat hesaplama bölümüne yönlendir.",
+  "Kamera veya görüntü görmediğin halde ölçüyü doğru diye onaylama.",
+].join(" ");
 
 function normalizeAssistantContent(content: string) {
   const normalized = content.toLocaleLowerCase("tr-TR");
@@ -33,7 +43,17 @@ function normalizeAssistantContent(content: string) {
   ) {
     return maintenanceMessage;
   }
-  return content;
+
+  const cleaned = content
+    .replace(/#{1,6}\s*/g, "")
+    .replace(/^[-*•]\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  const sentences = cleaned.match(/[^.!?]+[.!?]?/g)?.map(sentence => sentence.trim()).filter(Boolean) ?? [];
+  const shortReply = sentences.slice(0, 2).join(" ").trim();
+  if (!shortReply) return maintenanceMessage;
+  return shortReply.length > 220 ? `${shortReply.slice(0, 217).trim()}...` : shortReply;
 }
 
 export default function AIAdvisor() {
@@ -55,9 +75,16 @@ export default function AIAdvisor() {
     setIsLoading(true);
 
     try {
-      const response = await chatMutation.mutateAsync({
-        messages: [...messages, userMessage].map(message => ({ role: message.role, content: message.content })),
-      });
+      const conversation = [...messages, userMessage].map(message => ({
+        role: message.role,
+        content: message.content,
+      }));
+      conversation[conversation.length - 1] = {
+        role: "user",
+        content: `${userMessage.content}\n\n${advisorRule}`,
+      };
+
+      const response = await chatMutation.mutateAsync({ messages: conversation });
       setMessages(prev => [...prev, { role: "assistant", content: normalizeAssistantContent(response.content) }]);
     } catch {
       setMessages(prev => [...prev, { role: "assistant", content: maintenanceMessage }]);
@@ -81,7 +108,7 @@ export default function AIAdvisor() {
         </div>
         <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Akıllı Ürün Danışmanı</h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
-          İhtiyacınızı kısaca anlatın; ürün, ölçü, montaj ve sipariş sürecinde size yardımcı olalım.
+          İhtiyacınızı yazın; size kısa ve anlaşılır şekilde yardımcı olalım.
         </p>
       </div>
 
@@ -92,9 +119,9 @@ export default function AIAdvisor() {
               <div className="flex flex-col items-center justify-center h-full space-y-6">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"><Bot className="h-8 w-8 text-primary" /></div>
                 <div className="text-center space-y-2">
-                  <h3 className="font-semibold">Merhaba! Ben RGNFIX AI Danışmanınız.</h3>
+                  <h3 className="font-semibold">Merhaba, nasıl yardımcı olabilirim?</h3>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Plise perde, sineklik ve ileride eklenecek diğer demonte ürünler için kısa ve net destek verebilirim.
+                    Plise perde, sineklik, ölçü, montaj ve ürün seçimi hakkında kısa bilgi verebilirim.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
@@ -110,8 +137,8 @@ export default function AIAdvisor() {
             {messages.map((message, index) => (
               <div key={index} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 {message.role === "assistant" && <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><Bot className="h-4 w-4 text-primary" /></div>}
-                <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm ${message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  {message.role === "assistant" ? <Streamdown>{message.content}</Streamdown> : message.content}
+                <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
+                  {message.content}
                 </div>
                 {message.role === "user" && <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0"><User className="h-4 w-4" /></div>}
               </div>
