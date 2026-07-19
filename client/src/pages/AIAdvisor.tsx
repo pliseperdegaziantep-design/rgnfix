@@ -2,36 +2,77 @@ import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
-import { Bot, Send, Sparkles, User } from "lucide-react";
+import { Bot, MessageCircle, Send, Sparkles, User } from "lucide-react";
 import { trpc } from "@/lib/trpc";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  showWhatsApp?: boolean;
 }
 
+const WHATSAPP_URL = "https://wa.me/905300288903?text=Merhaba%2C%20sineklik%20fiyat%C4%B1%20hakk%C4%B1nda%20bilgi%20almak%20istiyorum.";
+
 const quickQuestions = [
-  "Cam balkonum için hangi perde uygun?",
+  "Cam balkonum için hangi plise perde uygun?",
+  "Plise perde kumaş serileri nelerdir?",
   "Pencere sineklik fiyatı nedir?",
-  "Kapı sineklik fiyatı nedir?",
   "Kiracıyım, vidasız montaj istiyorum",
   "Çift cam için hangi kasa seçilir?",
-  "Ölçüyü nasıl almalıyım?",
+  "Kargo kaç iş gününde çıkar?",
 ];
 
 const maintenanceMessage =
-  "Şu anda kısa süreli bir bağlantı sorunu var. Ölçü ve fiyat bölümlerinden devam edebilirsiniz.";
+  "Şu anda kısa süreli bir bağlantı sorunu var. WhatsApp üzerinden destek alabilirsiniz.";
 
 const advisorRule = [
-  "RGNFIX müşteri danışmanı olarak cevap ver.",
-  "Sadece plise perde, sineklik, ölçü, montaj, kasa, kumaş, fiyat ve sipariş hakkında konuş.",
-  "Tadilat, endüstriyel alan, fabrika, proje, inşaat veya ilgisiz kullanım alanlarından söz etme.",
-  "Müşteriyle doğal sohbet havasında konuş ama cevabın en fazla iki kısa cümle olsun.",
-  "Tek seferde yalnızca gerekli ürünü tanıt ve en fazla bir kısa soru sor.",
-  "Madde işareti, uzun açıklama, başlık ve teknik döküm kullanma.",
-  "Fiyatı tahmin etme; kesin fiyat için ölçü ve fiyat hesaplama bölümüne yönlendir.",
-  "Kamera veya görüntü görmediğin halde ölçüyü doğru diye onaylama.",
+  "Sen Plise Perde Gaziantep firmasının RGNFIX yapay zekâ satış ve sipariş danışmanısın.",
+  "Ana uzmanlık ve satış odağın plise perdedir.",
+  "Müşterinin yalnızca sorduğu soruya cevap ver; alakasız bilgi, gereksiz öneri, uzun satış konuşması veya konu dışı açıklama yapma.",
+  "Cevapların doğal, samimi, doğru ve en fazla iki kısa cümle olsun. Gerekli değilse takip sorusu sorma; gerekiyorsa yalnızca bir soru sor.",
+  "Plise perde için Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro ve Honeycomb serilerini; sistemde bulunan varyantları, renk kartelasını, profil rengini, montaj tipini, ölçüyü ve sipariş akışını doğru şekilde anlatabilirsin.",
+  "Müşterinin ihtiyacına göre plise perde kumaş serisi ve karteladaki varyantlardan seçim yapmasına yardımcı ol; sistemde olmayan renk veya varyant uydurma.",
+  "Sineklik bir perde kumaşı kullanmaz. Akordiyon sineklikte yalnızca standart kaliteli fiber sineklik tülü vardır; Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro veya Honeycomb asla sinekliğe önerilmez.",
+  "Sineklik için kumaş serisi, kumaş çeşidi veya varyant varmış gibi konuşma.",
+  "Sineklik fiyatı sorulursa fiyat hesaplama veya tahmin yapma; sadece güncel fiyat için WhatsApp hattına yönlendir.",
+  "Plise perde fiyatını tahmin etme; yalnızca sistemdeki matematiksel fiyat hesaplama bölümünün sonucunu esas al.",
+  "Kargo veya hazırlanma süresi sorulursa yalnızca 'Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir.' diye cevap ver.",
+  "Ölçü sırasında müşteri plise perde, kumaş, renk, montaj, kasa, temizlik, garanti, teslimat veya sipariş hakkında soru sorarsa kısa cevap ver ve ardından kaldığı ölçü adımına devam et.",
+  "Kamera veya görüntü görmediğin halde ölçünün doğru olduğunu söyleme.",
+  "Sipariş sürecinde ad soyad, telefon, il, ilçe, adres, uygulama alanı, ölçüler, kumaş serisi, varyant, profil rengi, montaj tipi ve kasa tipi gibi eksik bilgileri sırayla tamamla; aynı anda yalnızca bir eksik bilgi sor.",
+  "Sipariş bilgileri tamamlandığında müşteriyi WhatsApp üzerinden siparişi iletmeye yönlendir.",
+  "Bilmediğin veya sistemde bulunmayan bir bilgiyi kesinlikle uydurma; WhatsApp desteğine yönlendir.",
+  "Madde işareti, başlık, teknik döküm ve müşterinin sormadığı ek bilgi kullanma.",
 ].join(" ");
+
+function localAnswer(text: string): Message | null {
+  const normalized = text.toLocaleLowerCase("tr-TR");
+  const asksPrice = /(fiyat|kaç para|ücret|maliyet)/.test(normalized);
+  const asksShipping = /(kargo|hazırlan|teslim|kaç gün|ne zaman gelir)/.test(normalized);
+  const isInsectScreen = /(sineklik|akordiyon sineklik|sinek tülü|fiber tül)/.test(normalized);
+  const asksInsectScreenFabric = isInsectScreen && /(kumaş|nova|neo|nano|honey|seri|varyant|tül)/.test(normalized);
+
+  if (asksShipping) {
+    return { role: "assistant", content: "Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir." };
+  }
+
+  if (isInsectScreen && asksPrice) {
+    return {
+      role: "assistant",
+      content: "Sineklik için güncel fiyat bilgisini WhatsApp hattımızdan alabilirsiniz.",
+      showWhatsApp: true,
+    };
+  }
+
+  if (asksInsectScreenFabric) {
+    return {
+      role: "assistant",
+      content: "Akordiyon sineklikte kumaş serisi bulunmaz; yalnızca standart kaliteli fiber sineklik tülü kullanılır.",
+    };
+  }
+
+  return null;
+}
 
 function normalizeAssistantContent(content: string) {
   const normalized = content.toLocaleLowerCase("tr-TR");
@@ -53,7 +94,7 @@ function normalizeAssistantContent(content: string) {
   const sentences = cleaned.match(/[^.!?]+[.!?]?/g)?.map(sentence => sentence.trim()).filter(Boolean) ?? [];
   const shortReply = sentences.slice(0, 2).join(" ").trim();
   if (!shortReply) return maintenanceMessage;
-  return shortReply.length > 220 ? `${shortReply.slice(0, 217).trim()}...` : shortReply;
+  return shortReply.length > 260 ? `${shortReply.slice(0, 257).trim()}...` : shortReply;
 }
 
 export default function AIAdvisor() {
@@ -72,8 +113,14 @@ export default function AIAdvisor() {
     const userMessage: Message = { role: "user", content: text.trim() };
     setMessages(prev => [...prev, userMessage]);
     setInput("");
-    setIsLoading(true);
 
+    const fixedAnswer = localAnswer(userMessage.content);
+    if (fixedAnswer) {
+      setMessages(prev => [...prev, fixedAnswer]);
+      return;
+    }
+
+    setIsLoading(true);
     try {
       const conversation = [...messages, userMessage].map(message => ({
         role: message.role,
@@ -85,9 +132,11 @@ export default function AIAdvisor() {
       };
 
       const response = await chatMutation.mutateAsync({ messages: conversation });
-      setMessages(prev => [...prev, { role: "assistant", content: normalizeAssistantContent(response.content) }]);
+      const content = normalizeAssistantContent(response.content);
+      const showWhatsApp = /whatsapp/i.test(content);
+      setMessages(prev => [...prev, { role: "assistant", content, showWhatsApp }]);
     } catch {
-      setMessages(prev => [...prev, { role: "assistant", content: maintenanceMessage }]);
+      setMessages(prev => [...prev, { role: "assistant", content: maintenanceMessage, showWhatsApp: true }]);
     } finally {
       setIsLoading(false);
     }
@@ -106,9 +155,9 @@ export default function AIAdvisor() {
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
           <Sparkles className="h-3.5 w-3.5" /> Yapay Zekâ Destekli
         </div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Akıllı Ürün Danışmanı</h1>
+        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Plise Perde AI Danışmanı</h1>
         <p className="text-muted-foreground max-w-xl mx-auto">
-          İhtiyacınızı yazın; size kısa ve anlaşılır şekilde yardımcı olalım.
+          Plise perde seçimi, ölçü, montaj ve sipariş hakkında sorunuzu yazın.
         </p>
       </div>
 
@@ -121,7 +170,7 @@ export default function AIAdvisor() {
                 <div className="text-center space-y-2">
                   <h3 className="font-semibold">Merhaba, nasıl yardımcı olabilirim?</h3>
                   <p className="text-sm text-muted-foreground max-w-md">
-                    Plise perde, sineklik, ölçü, montaj ve ürün seçimi hakkında kısa bilgi verebilirim.
+                    Sorunuza kısa ve doğrudan cevap vererek plise perde sipariş sürecinde yardımcı olurum.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
@@ -138,7 +187,14 @@ export default function AIAdvisor() {
               <div key={index} className={`flex gap-3 ${message.role === "user" ? "justify-end" : "justify-start"}`}>
                 {message.role === "assistant" && <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0"><Bot className="h-4 w-4 text-primary" /></div>}
                 <div className={`max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-6 ${message.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted"}`}>
-                  {message.content}
+                  <p>{message.content}</p>
+                  {message.role === "assistant" && message.showWhatsApp && (
+                    <Button asChild size="sm" className="mt-3 gap-2">
+                      <a href={WHATSAPP_URL} target="_blank" rel="noreferrer">
+                        <MessageCircle className="h-4 w-4" /> WhatsApp’tan Bilgi Al
+                      </a>
+                    </Button>
+                  )}
                 </div>
                 {message.role === "user" && <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0"><User className="h-4 w-4" /></div>}
               </div>
@@ -155,7 +211,7 @@ export default function AIAdvisor() {
 
           <div className="border-t p-4">
             <div className="flex gap-2">
-              <Textarea value={input} onChange={event => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Sorunuzu kısa yazın..." className="min-h-[44px] max-h-32 resize-none rounded-xl" rows={1} />
+              <Textarea value={input} onChange={event => setInput(event.target.value)} onKeyDown={handleKeyDown} placeholder="Plise perdeyle ilgili sorunuzu yazın..." className="min-h-[44px] max-h-32 resize-none rounded-xl" rows={1} />
               <Button onClick={() => void sendMessage(input)} disabled={!input.trim() || isLoading} size="icon" className="rounded-xl h-11 w-11 shrink-0" aria-label="Mesaj gönder"><Send className="h-4 w-4" /></Button>
             </div>
           </div>
