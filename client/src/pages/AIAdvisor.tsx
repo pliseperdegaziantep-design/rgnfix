@@ -14,12 +14,14 @@ interface Message {
 const WHATSAPP_URL = "https://wa.me/905300288903?text=Merhaba%2C%20plise%20perde%20hakk%C4%B1nda%20bilgi%20almak%20istiyorum.";
 
 const quickQuestions = [
-  "Cam balkon için hangi perde uygun?",
-  "Kumaş serileri nelerdir?",
-  "Plise perde nasıl temizlenir?",
-  "Kiracıyım, vidasız olur mu?",
-  "Çift cam için hangi kasa seçilir?",
-  "Kargo kaç iş gününde çıkar?",
+  "Nova serisini anlat",
+  "Neo Fashion serisini anlat",
+  "Nano Clean serisini anlat",
+  "Nano Insulation serisini anlat",
+  "Nano Pro serisini anlat",
+  "Honeycomb serisini anlat",
+  "Kumaş renk kartelamızı göster",
+  "Profil renklerimiz nelerdir?",
 ];
 
 const maintenanceMessage = "Şu anda bağlantı sorunu var. WhatsApp’tan destek alabilirsiniz.";
@@ -31,8 +33,10 @@ const advisorRule = [
   "Müşteri satın almak isterse yalnızca WhatsApp hattına yönlendir.",
   "Müşterinin sadece sorduğu soruya cevap ver. Sorulmayan konuya girme, alakasız bilgi verme ve gereksiz takip sorusu sorma.",
   "Cevapların mümkün olduğunca kısa olsun; çoğunlukla tek cümle, gerektiğinde en fazla iki kısa cümle kullan.",
-  "Plise perde için Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro ve Honeycomb serilerini; varyant, renk kartelası, profil rengi, montaj tipi, ölçü, kasa, temizlik ve garanti bilgilerini doğru anlat.",
-  "Sistemde olmayan renk, özellik, fiyat veya varyant uydurma.",
+  "Yalnızca Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro ve Honeycomb kumaş serilerini öner.",
+  "Renk önerirken yalnızca sistemde kayıtlı kumaş renk kartelasını ve profil renklerini kullan; kartela dışında hiçbir renk, ton, varyant veya özel renk uydurma.",
+  "Dekorasyon stili, modern veya klasik tarz, mobilya, duvar rengi ya da iç mimari önerisi verme.",
+  "Sistemde bulunmayan renk, özellik, fiyat veya varyant uydurma.",
   "Akordiyon sineklikte kumaş serisi bulunmaz; yalnızca standart fiber sineklik tülü vardır. Plise perde kumaşlarını sinekliğe asla önerme.",
   "Sineklik fiyatı sorulursa fiyat hesaplama ve tahmin yapmadan WhatsApp’a yönlendir.",
   "Plise perde fiyatını tahmin etme; fiyat hesaplama bölümüne veya WhatsApp’a yönlendir.",
@@ -48,6 +52,7 @@ function localAnswer(text: string): Message | null {
   const wantsToBuy = /(satın almak|sipariş vermek|almak istiyorum|nasıl alırım|sipariş oluştur)/.test(normalized);
   const isInsectScreen = /(sineklik|akordiyon sineklik|sinek tülü|fiber tül)/.test(normalized);
   const asksInsectScreenFabric = isInsectScreen && /(kumaş|nova|neo|nano|honey|seri|varyant|tül)/.test(normalized);
+  const asksColors = /(renk|kartela|profil rengi)/.test(normalized);
 
   if (asksShipping) return { role: "assistant", content: "Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir." };
 
@@ -61,6 +66,10 @@ function localAnswer(text: string): Message | null {
 
   if (wantsToBuy) {
     return { role: "assistant", content: "Satın alma işlemi için WhatsApp’tan bize ulaşabilirsiniz.", showWhatsApp: true };
+  }
+
+  if (asksColors) {
+    return { role: "assistant", content: "Yalnızca mevcut kumaş kartelamızdaki ve profil seçeneklerimizdeki renkleri öneririm; kartela dışına çıkmam." };
   }
 
   return null;
@@ -116,16 +125,16 @@ export default function AIAdvisor() {
       <div className="text-center mb-8">
         <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4"><Sparkles className="h-3.5 w-3.5" /> Yapay Zekâ Destekli</div>
         <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Plise Perde Danışmanı</h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">Plise perdeyle ilgili sorunuzu yazın.</p>
+        <p className="text-muted-foreground max-w-2xl mx-auto leading-6">Plise perde kumaş serilerimiz ve renk kartelamız hakkında bilgi alabilirsiniz. Ölçü, montaj, temizlik ve kullanım sorularınıza kısa ve doğrudan cevap veririm. Yalnızca sistemimizde bulunan ürün ve renkleri öneririm.</p>
       </div>
 
       <Card className="border-border/50 overflow-hidden">
-        <div className="h-[500px] flex flex-col">
+        <div className="h-[540px] flex flex-col">
           <div className="flex-1 overflow-y-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-full space-y-6">
                 <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"><Bot className="h-8 w-8 text-primary" /></div>
-                <div className="text-center space-y-2"><h3 className="font-semibold">Merhaba, sorunuzu yazabilirsiniz.</h3><p className="text-sm text-muted-foreground max-w-md">Kısa ve doğrudan cevap veririm.</p></div>
+                <div className="text-center space-y-2"><h3 className="font-semibold">Kumaş serilerimizi ve renklerimizi inceleyin</h3><p className="text-sm text-muted-foreground max-w-md">Aşağıdaki öneriler yalnızca kendi ürün seçeneklerimizden oluşur.</p></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
                   {quickQuestions.map((question, index) => <button key={index} onClick={() => void sendMessage(question)} className="text-left text-xs px-3 py-2 rounded-lg border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-colors">{question}</button>)}
                 </div>
