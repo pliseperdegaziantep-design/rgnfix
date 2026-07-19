@@ -26,9 +26,7 @@ const quickQuestions = [
   "Orta kalite hangi seri?",
   "Kaliteli hangi seri?",
   "Karartma perde hangisi?",
-  "Nova serisini anlat",
-  "Neo Fashion serisini anlat",
-  "Nano Pro serisini anlat",
+  "Kumaş renk kodları nelerdir?",
   "Profil renklerimiz nelerdir?",
 ];
 
@@ -37,7 +35,7 @@ const maintenanceMessage = "Şu anda bağlantı sorunu var. WhatsApp’tan deste
 const advisorRule = [
   "Sen Plise Perde Gaziantep firmasının yapay zekâ ürün danışmanısın.",
   "Yalnızca müşterinin sorduğu soruya cevap ver; önceki cevabı tekrar etme ve gereksiz bilgi ekleme.",
-  "Cevapların tek kısa cümle olsun; zorunluysa en fazla iki kısa cümle kullan.",
+  "Cevabın tek kısa cümle olsun; zorunluysa en fazla iki kısa cümle kullan.",
   "Müşteri ölçü ve adet yazdıysa Nova serisini esas alarak yaklaşık toplam fiyatı doğrudan söyle.",
   "Fiyat hesaplamasında en ve boyu ayrı ayrı bir üst 10 cm'ye tamamla, her parçada minimum 1 m² uygula ve Nova için 485 TL/m² kullan.",
   "Fiyat veya ekonomik ürün sorulduğunda ilk olarak Nova serisini öner.",
@@ -45,10 +43,13 @@ const advisorRule = [
   "Müşteri kaliteli veya üst segment ürün isterse Neo Fashion ya da Nano Pro öner.",
   "Karartma isteyen müşteriye yalnızca Nano Pro VR03 veya VR04 öner ve bunların karartma kumaş olduğunu belirt.",
   "Honeycomb serisini müşteri özellikle sormadıkça ilk öneri olarak sunma.",
+  "Renk önerisinde kumaş serisiyle birlikte mevcut kartela kodunu da yaz; bilmediğin veya sistemde kayıtlı olmayan kodu uydurma.",
+  "Profil renkleri yalnızca Beyaz, Krem, Gümüş Gri ve Antrasittir.",
+  "Profil rengini önce cam balkonun, PVC'nin veya uygulanacak alanın mevcut rengine göre öner.",
+  "Bronz, kahve, ahşap veya stokta olmayan bir uygulama alanı renginde kumaş rengine en yakın mevcut profil rengini öner; olmayan profil rengini uydurma.",
   "Bu sohbet içinde adres, ad soyad, telefon veya açık adres bilgisi isteme.",
   "Müşteri satın almak isterse uygun seriyi kısaca öner ve WhatsApp hattına yönlendir.",
   "Yalnızca Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro ve Honeycomb serilerini öner.",
-  "Renk önerirken yalnızca sistemde kayıtlı kartela ve profil renklerini kullan; kartela dışında renk uydurma.",
   "Dekorasyon, mobilya, duvar rengi veya iç mimari önerisi verme.",
   "Akordiyon sineklikte yalnızca standart fiber sineklik tülü vardır; plise perde kumaşı önerme.",
   "Sineklik fiyatı sorulursa WhatsApp’a yönlendir.",
@@ -106,7 +107,9 @@ function localAnswer(text: string, messages: Message[]): Message | null {
   const wantsToBuy = /(satın almak|sipariş vermek|almak istiyorum|nasıl alırım|sipariş oluştur)/.test(normalized);
   const isInsectScreen = /(sineklik|akordiyon sineklik|sinek tülü|fiber tül)/.test(normalized);
   const asksInsectScreenFabric = isInsectScreen && /(kumaş|nova|neo|nano|honey|seri|varyant|tül)/.test(normalized);
-  const asksColors = /(renk|kartela|profil rengi)/.test(normalized);
+  const asksColors = /(renk|kartela|kumaş kod|varyant kod)/.test(normalized);
+  const asksProfileColors = /(profil rengi|profil renkleri)/.test(normalized);
+  const unsupportedProfile = /(bronz|kahve|kahverengi|ahşap)/.test(normalized) && /(profil|cam balkon|pvc|doğrama|alan)/.test(normalized);
   const asksMedium = /(orta kalite|orta segment)/.test(normalized);
   const asksPremium = /(kaliteli|üst segment|premium|en iyi)/.test(normalized);
   const asksBlackout = /(karartma|ışık geçirmesin|tam kapatsın|gece gibi)/.test(normalized);
@@ -114,43 +117,22 @@ function localAnswer(text: string, messages: Message[]): Message | null {
   const latestMeasurement = findLatestMeasurement(messages, text);
 
   if (asksShipping) return { role: "assistant", content: "Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir." };
-
-  if (isInsectScreen && asksPrice) {
-    return { role: "assistant", content: "Sineklik fiyatı için WhatsApp’tan bilgi alabilirsiniz.", showWhatsApp: true };
-  }
-
-  if (asksInsectScreenFabric) {
-    return { role: "assistant", content: "Akordiyon sineklikte standart fiber sineklik tülü kullanılır." };
-  }
+  if (isInsectScreen && asksPrice) return { role: "assistant", content: "Sineklik fiyatı için WhatsApp’tan bilgi alabilirsiniz.", showWhatsApp: true };
+  if (asksInsectScreenFabric) return { role: "assistant", content: "Akordiyon sineklikte standart fiber sineklik tülü kullanılır." };
 
   if ((currentMeasurement || asksPrice) && latestMeasurement) {
     const price = calculateNovaPrice(latestMeasurement);
     return { role: "assistant", content: `Nova serisi için yaklaşık toplam fiyat ${formatTry(price)} TL’dir.` };
   }
 
-  if (asksBlackout) {
-    return { role: "assistant", content: "Karartma için Nano Pro VR03 veya VR04 öneririm." };
-  }
-
-  if (asksMedium) {
-    return { role: "assistant", content: "Orta kalite için Neo Fashion serisini öneririm." };
-  }
-
-  if (asksPremium) {
-    return { role: "assistant", content: "Kaliteli seçim için Neo Fashion, daha üst seviye için Nano Pro öneririm." };
-  }
-
-  if (asksPrice) {
-    return { role: "assistant", content: "İlk fiyat seçeneğimiz Nova serisidir; ölçü ve adet yazarsanız yaklaşık toplamı hesaplarım." };
-  }
-
-  if (wantsToBuy) {
-    return { role: "assistant", content: "Sipariş için WhatsApp’tan bize ulaşabilirsiniz.", showWhatsApp: true };
-  }
-
-  if (asksColors) {
-    return { role: "assistant", content: "Yalnızca mevcut kumaş ve profil kartelamızdaki renkleri öneririm." };
-  }
+  if (asksBlackout) return { role: "assistant", content: "Karartma için Nano Pro VR03 veya VR04 öneririm." };
+  if (asksMedium) return { role: "assistant", content: "Orta kalite için Neo Fashion serisini öneririm." };
+  if (asksPremium) return { role: "assistant", content: "Kaliteli seçim için Neo Fashion, daha üst seviye için Nano Pro öneririm." };
+  if (asksPrice) return { role: "assistant", content: "İlk fiyat seçeneğimiz Nova serisidir; ölçü ve adet yazarsanız yaklaşık toplamı hesaplarım." };
+  if (wantsToBuy) return { role: "assistant", content: "Sipariş için WhatsApp’tan bize ulaşabilirsiniz.", showWhatsApp: true };
+  if (unsupportedProfile) return { role: "assistant", content: "Bu renkte profilimiz yok; kumaşa en yakın Beyaz, Krem, Gümüş Gri veya Antrasit profil önerilir." };
+  if (asksProfileColors) return { role: "assistant", content: "Profil renklerimiz Beyaz, Krem, Gümüş Gri ve Antrasittir." };
+  if (asksColors) return { role: "assistant", content: "Renk önerisinde kumaş serisini ve mevcut kartela kodunu birlikte yazarım." };
 
   return null;
 }
@@ -217,10 +199,10 @@ export default function AIAdvisor() {
 
   return (
     <div className="container py-8 max-w-4xl">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4"><Sparkles className="h-3.5 w-3.5" /> Yapay Zekâ Destekli</div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Plise Perde Danışmanı</h1>
-        <p className="text-muted-foreground max-w-2xl mx-auto leading-6">Sorunuzu kısa şekilde yazın. Ölçü ve adet gönderirseniz Nova serisine göre yaklaşık fiyatı hesaplarım.</p>
+      <div className="text-center mb-6">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-3"><Sparkles className="h-3.5 w-3.5" /> Yapay Zekâ Destekli</div>
+        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-2">Plise Perde Danışmanı</h1>
+        <p className="text-muted-foreground max-w-xl mx-auto">Sorunuzu yazın; kısa ve net cevaplayayım.</p>
       </div>
 
       <Card className="border-border/50 overflow-hidden">
@@ -229,7 +211,7 @@ export default function AIAdvisor() {
             {messages.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-full space-y-6">
                 <div className="w-20 h-20 rounded-2xl bg-primary/10 p-2.5 flex items-center justify-center"><BrandLogo compact className="h-full" /></div>
-                <div className="text-center space-y-2"><h3 className="font-semibold">Size kısa ve doğru cevap veririm</h3><p className="text-sm text-muted-foreground max-w-md">Ölçü ve adet yazarsanız yaklaşık fiyatı hemen hesaplarım.</p></div>
+                <div className="text-center space-y-2"><h3 className="font-semibold">Size kısa ve doğru cevap veririm</h3><p className="text-sm text-muted-foreground max-w-md">Ölçü ve adet yazarsanız yaklaşık fiyatı hesaplarım.</p></div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full max-w-lg">
                   {quickQuestions.map((question, index) => <button type="button" key={index} onClick={() => void sendMessage(question)} className="text-left text-xs px-3 py-2 rounded-lg border border-border/50 hover:border-primary/30 hover:bg-primary/5 transition-colors">{question}</button>)}
                 </div>
