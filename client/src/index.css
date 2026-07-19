@@ -1,0 +1,134 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@font-face {
+  font-family: "Playfair Display";
+  font-style: normal;
+  font-weight: 400 900;
+  font-display: swap;
+  src: url("https://fonts.gstatic.com/s/playfairdisplay/v37/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKd3vXDXbtM.woff2") format("woff2");
+}
+
+@theme inline {
+  --color-background: #f7f9fb;
+  --color-foreground: #0d1b2a;
+  --color-card: oklch(0.997 0.004 90);
+  --color-card-foreground: oklch(0.26 0.035 195);
+  --color-popover: oklch(0.997 0.004 90);
+  --color-popover-foreground: oklch(0.26 0.035 195);
+  --color-primary: #0d1b2a;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #0096d6;
+  --color-secondary-foreground: #ffffff;
+  --color-muted: #eef2f5;
+  --color-muted-foreground: #5f6c79;
+  --color-accent: #dff8f7;
+  --color-accent-foreground: #0d1b2a;
+  --color-destructive: oklch(0.55 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0.005 25);
+  --color-border: #d9e0e7;
+  --color-input: #d9e0e7;
+  --color-ring: #0096d6;
+  --color-chart-1: oklch(0.45 0.12 260);
+  --color-chart-2: oklch(0.55 0.15 160);
+  --color-chart-3: oklch(0.6 0.12 50);
+  --color-chart-4: oklch(0.65 0.1 300);
+  --color-chart-5: oklch(0.7 0.15 30);
+  --color-sidebar: oklch(0.97 0.005 260);
+  --color-sidebar-foreground: oklch(0.15 0.02 260);
+  --color-sidebar-primary: oklch(0.45 0.12 260);
+  --color-sidebar-primary-foreground: oklch(0.98 0.005 260);
+  --color-sidebar-accent: oklch(0.93 0.02 260);
+  --color-sidebar-accent-foreground: oklch(0.25 0.03 260);
+  --color-sidebar-border: oklch(0.9 0.01 260);
+  --color-sidebar-ring: oklch(0.45 0.12 260);
+  --radius: 0.8rem;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-serif: "Inter", system-ui, sans-serif;
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+}
+
+.dark {
+  --color-background: #07121e;
+  --color-foreground: oklch(0.95 0.012 90);
+  --color-card: #0d1b2a;
+  --color-card-foreground: oklch(0.95 0.005 260);
+  --color-popover: oklch(0.17 0.02 260);
+  --color-popover-foreground: oklch(0.95 0.005 260);
+  --color-primary: #0096d6;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #00b4b0;
+  --color-secondary-foreground: #07121e;
+  --color-muted: oklch(0.22 0.02 260);
+  --color-muted-foreground: oklch(0.65 0.02 260);
+  --color-accent: oklch(0.22 0.02 260);
+  --color-accent-foreground: oklch(0.9 0.005 260);
+  --color-destructive: oklch(0.55 0.2 25);
+  --color-destructive-foreground: oklch(0.98 0.005 25);
+  --color-border: oklch(0.27 0.02 260);
+  --color-input: oklch(0.27 0.02 260);
+  --color-ring: oklch(0.7 0.15 260);
+  --color-sidebar: oklch(0.15 0.02 260);
+  --color-sidebar-foreground: oklch(0.95 0.005 260);
+  --color-sidebar-primary: oklch(0.7 0.15 260);
+  --color-sidebar-primary-foreground: oklch(0.13 0.02 260);
+  --color-sidebar-accent: oklch(0.22 0.02 260);
+  --color-sidebar-accent-foreground: oklch(0.9 0.005 260);
+  --color-sidebar-border: oklch(0.27 0.02 260);
+  --color-sidebar-ring: oklch(0.7 0.15 260);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    background-image: radial-gradient(circle at 85% 5%, color-mix(in oklab, var(--color-primary) 8%, transparent), transparent 32rem);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-serif);
+  }
+}
+
+@layer components {
+  .container {
+    @apply mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-8;
+  }
+
+  .glass-card {
+    @apply bg-white/80 dark:bg-white/5 backdrop-blur-xl border border-white/40 dark:border-white/10 rounded-2xl shadow-lg;
+  }
+
+  .gradient-text {
+    @apply bg-gradient-to-r from-[#0D1B2A] via-[#0096D6] to-[#00B4B0] bg-clip-text text-transparent dark:from-white dark:via-[#0096D6] dark:to-[#00B4B0];
+  }
+
+  .brand-fix {
+    background: linear-gradient(110deg, #0096d6, #00b4b0 52%, #1e2a39);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .btn-premium {
+    @apply relative overflow-hidden bg-primary text-primary-foreground px-6 py-3 rounded-xl font-medium
+    transition-all duration-200 hover:shadow-lg hover:shadow-primary/25 active:scale-[0.97];
+  }
+
+  .future-grid {
+    background-image:
+      linear-gradient(color-mix(in oklab, var(--color-primary) 5%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklab, var(--color-primary) 5%, transparent) 1px, transparent 1px);
+    background-size: 32px 32px;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
