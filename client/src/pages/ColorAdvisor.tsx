@@ -24,17 +24,15 @@ const MAIN_COLORS = [
 ] as const;
 
 const FABRIC_SERIES = [
-  { id: "nova", name: "Nova", codes: "VR01–VR10", colors: ["Beyaz", "Krem", "Bej", "Açık Gri"], level: 1 },
-  { id: "neo-fashion", name: "Neo Fashion", codes: "VR04, VR05, VR06", colors: ["Krem", "Bej", "Gri", "Antrasit"], level: 2 },
-  { id: "nano-clean", name: "Nano Clean", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Krem", "Açık Gri", "Gri"], level: 2 },
-  { id: "nano-insulation", name: "Nano Insulation", codes: "Karteladaki mevcut varyantlar", colors: ["Krem", "Bej", "Gri", "Antrasit"], level: 3 },
-  { id: "nano-pro", name: "Nano Pro", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Bej", "Antrasit", "Siyah"], level: 4 },
-  { id: "honeycomb", name: "Honeycomb", codes: "VR01, VR02, VR03, VR05", colors: ["Beyaz", "Krem", "Gri", "Antrasit"], level: 4 },
+  { id: "nova", name: "Nova", codes: "VR01–VR10", colors: ["Beyaz", "Krem", "Bej", "Açık Gri"] },
+  { id: "neo-fashion", name: "Neo Fashion", codes: "VR04, VR05, VR06", colors: ["Krem", "Bej", "Gri", "Antrasit"] },
+  { id: "nano-clean", name: "Nano Clean", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Krem", "Açık Gri", "Gri"] },
+  { id: "nano-insulation", name: "Nano Insulation", codes: "Karteladaki mevcut varyantlar", colors: ["Krem", "Bej", "Gri", "Antrasit"] },
+  { id: "nano-pro", name: "Nano Pro", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Bej", "Antrasit", "Siyah"] },
+  { id: "honeycomb", name: "Honeycomb", codes: "VR01, VR02, VR03, VR05", colors: ["Beyaz", "Krem", "Gri", "Antrasit"] },
 ] as const;
 
 const PROFILE_COLORS = ["Beyaz", "Krem", "Gümüş Gri", "Antrasit"] as const;
-
-type MainColorId = typeof MAIN_COLORS[number]["id"];
 
 function getColor(id: string) {
   return MAIN_COLORS.find(color => color.id === id);
@@ -53,18 +51,10 @@ function determinePalette(wallId: string, floorId: string, furnitureId: string) 
   return { colors: ["Beyaz", "Krem", "Bej"], profile: "Beyaz", series: ["nova", "neo-fashion", "nano-clean"] };
 }
 
-function chooseProfile(applicationColor: string, fallback: string) {
-  if (applicationColor === "beyaz") return "Beyaz";
-  if (applicationColor === "krem") return "Krem";
-  if (["gri", "acik-gri"].includes(applicationColor)) return "Gümüş Gri";
-  if (["antrasit", "siyah", "lacivert"].includes(applicationColor)) return "Antrasit";
-  return fallback;
-}
-
-function ColorSelect({ label, value, onChange, placeholder, required = false }: { label: string; value: string; onChange: (value: string) => void; placeholder: string; required?: boolean }) {
+function ColorSelect({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
   return (
     <div className="space-y-2">
-      <Label>{label}{required ? " *" : ""}</Label>
+      <Label>{label} *</Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger className="rounded-xl"><SelectValue placeholder={placeholder} /></SelectTrigger>
         <SelectContent className="max-h-72">
@@ -86,20 +76,16 @@ export default function ColorAdvisor() {
   const [wallColor, setWallColor] = useState("");
   const [floorColor, setFloorColor] = useState("");
   const [furnitureColor, setFurnitureColor] = useState("");
-  const [applicationColor, setApplicationColor] = useState("");
   const [showResult, setShowResult] = useState(false);
 
   const recommendation = useMemo(() => {
     const result = determinePalette(wallColor, floorColor, furnitureColor);
-    const profile = chooseProfile(applicationColor, result.profile);
     const series = result.series
       .map(id => FABRIC_SERIES.find(item => item.id === id))
       .filter((item): item is typeof FABRIC_SERIES[number] => Boolean(item));
-    return { ...result, profile, series };
-  }, [wallColor, floorColor, furnitureColor, applicationColor]);
+    return { ...result, series };
+  }, [wallColor, floorColor, furnitureColor]);
 
-  const application = getColor(applicationColor);
-  const unsupportedProfile = ["kahve", "bronz", "ahsap", "bordo", "yesil", "mavi", "sari"].includes(applicationColor);
   const ready = Boolean(wallColor && floorColor && furnitureColor);
 
   const resetResult = (setter: (value: string) => void) => (value: string) => {
@@ -119,10 +105,9 @@ export default function ColorAdvisor() {
         <Card className="border-border/50">
           <CardHeader><CardTitle className="text-lg">Alan Renkleri</CardTitle></CardHeader>
           <CardContent className="space-y-5">
-            <ColorSelect label="Duvar Rengi" value={wallColor} onChange={resetResult(setWallColor)} placeholder="Duvar rengini seçin" required />
-            <ColorSelect label="Zemin Rengi" value={floorColor} onChange={resetResult(setFloorColor)} placeholder="Zemin rengini seçin" required />
-            <ColorSelect label="Mobilya Rengi" value={furnitureColor} onChange={resetResult(setFurnitureColor)} placeholder="Mobilya rengini seçin" required />
-            <ColorSelect label="Cam Balkon / Uygulama Alanı Rengi" value={applicationColor} onChange={resetResult(setApplicationColor)} placeholder="Profil önerisi için seçin" />
+            <ColorSelect label="Duvar Rengi" value={wallColor} onChange={resetResult(setWallColor)} placeholder="Duvar rengini seçin" />
+            <ColorSelect label="Zemin Rengi" value={floorColor} onChange={resetResult(setFloorColor)} placeholder="Zemin rengini seçin" />
+            <ColorSelect label="Mobilya Rengi" value={furnitureColor} onChange={resetResult(setFurnitureColor)} placeholder="Mobilya rengini seçin" />
 
             <Button type="button" onClick={() => setShowResult(true)} disabled={!ready} className="w-full btn-premium gap-2"><Sparkles className="h-4 w-4" /> En Uygun Rengi Bul</Button>
 
@@ -161,11 +146,7 @@ export default function ColorAdvisor() {
                   <span className="inline-block px-4 py-2 rounded-xl bg-muted text-sm font-medium">{recommendation.profile}</span>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  {unsupportedProfile && application
-                    ? `${application.name} profilimiz yok; kumaş rengine en yakın ${recommendation.profile} profil önerilir.`
-                    : "Renkler alanınızdaki ana tonların uyumuna göre belirlendi."}
-                </p>
+                <p className="text-sm text-muted-foreground">Renkler alanınızdaki ana tonların uyumuna göre belirlendi.</p>
               </div>
             ) : (
               <div className="text-center py-12 text-muted-foreground"><Palette className="h-12 w-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Üç ana rengi seçerek öneri alın.</p></div>
