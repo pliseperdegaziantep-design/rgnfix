@@ -8,7 +8,7 @@ const SESSION_INSTRUCTIONS = [
   "Sen RGNFIX canlı ürün ve ölçü danışmanısın.",
   "Yalnızca Türkiye Türkçesi konuş; kelimeleri açık, doğru ve doğal telaffuz et.",
   "Cam kelimesini C harfiyle cam olarak söyle, gam deme. Ölçü kelimesindeki ö ve ü seslerini doğru söyle.",
-  "Sıcak, samimi ve profesyonel bir satış danışmanı gibi konuş.",
+  "Sıcak, samimi ve profesyonel bir kadın satış danışmanı gibi konuş.",
   "Her cevap en fazla iki kısa cümle olsun ve tek seferde en fazla bir soru sor.",
   "Müşteri konuşurken araya girme; sözünün bittiğinden emin olduktan sonra cevap ver.",
   "Gereksiz teknik açıklama, uzun liste, tadilat, fabrika veya endüstriyel kullanım gibi alakasız konular açma.",
@@ -17,6 +17,7 @@ const SESSION_INSTRUCTIONS = [
   "Tek camda Standart Kasa, çift camda Slim Kasa kullanıldığını söyle.",
   "Cam balkonda açılır kanat seçilmişse sistem payı otomatik düşürür; müşteriye ölçüyü eksiltmemesini söyle.",
   "En ve boy ölçülerini çelik metreyle, santimetre olarak ve cam içinden cam içine aldır.",
+  "Ondalıklı ölçüleri yuvarlama; örneğin 56,4 ölçüsünü elli altı virgül dört santimetre diye oku.",
   "Kamera veya görüntü yoksa ölçünün doğru olduğunu asla söyleme; yalnızca doğrulayamadığını belirt.",
   "Kamera açık olsa bile görüntüden ölçü doğruluğu onayı verme ve aktif kamera yönlendirmesi yapma.",
   "PVC ve alüminyum kapı veya pencerelerde kancalı montaj önerme.",
@@ -70,6 +71,8 @@ export class RealtimeVoiceGuide {
     } else if (this.channel?.readyState === "open") {
       void this.audio?.play().catch(() => undefined);
       this.setState("listening");
+    } else {
+      this.setState("idle");
     }
   }
 
@@ -104,11 +107,11 @@ export class RealtimeVoiceGuide {
               threshold: 0.45,
               prefix_padding_ms: 350,
               silence_duration_ms: 1200,
-              create_response: true,
+              create_response: false,
               interrupt_response: false,
             },
           },
-          output: { voice: "cedar", speed: 0.96 },
+          output: { voice: "marin", speed: 0.96 },
         },
       },
     }));
@@ -120,7 +123,7 @@ export class RealtimeVoiceGuide {
       if (payload.type === "input_audio_buffer.speech_started") this.setState(this.muted ? "muted" : "listening");
       if (payload.type === "response.created") {
         this.assistantTranscript = "";
-        this.setState(this.muted ? "muted" : "speaking");
+        if (!this.ttsAudio) this.setState(this.muted ? "muted" : "speaking");
       }
       if (payload.type === "response.output_audio_transcript.delta" && payload.delta) this.assistantTranscript += payload.delta;
       if (payload.type === "response.output_audio_transcript.done") {
@@ -132,17 +135,12 @@ export class RealtimeVoiceGuide {
         const text = payload.transcript?.trim();
         if (text) this.transcriptListener?.({ role: "user", text });
       }
-      if (payload.type === "response.done") {
+      if (payload.type === "response.done" && !this.ttsAudio) {
         this.setState(this.muted ? "muted" : "listening");
-        if (this.pendingSpeech && !this.muted && !this.ttsAudio) {
-          const next = this.pendingSpeech;
-          this.pendingSpeech = "";
-          window.setTimeout(() => void this.speak(next), 250);
-        }
       }
       if (payload.type === "error") this.reportError(payload.error?.message || "OpenAI canlı ses oturumunda hata oluştu.");
     } catch {
-      // Ignore non-JSON WebRTC events.
+      // JSON olmayan WebRTC olaylarını yok say.
     }
   }
 
@@ -192,15 +190,23 @@ export class RealtimeVoiceGuide {
   }
 
   private async playTurkishTts(text: string) {
+    if (this.channel?.readyState === "open") {
+      try { this.channel.send(JSON.stringify({ type: "response.cancel" })); } catch { /* bağlantı kapanmış olabilir */ }
+    }
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.muted = true;
+    }
+
     const response = await fetch("/api/ai/tts", {
       method: "POST",
       headers: { "content-type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ text }),
+      body: JSON.stringify({ text, voice: "marin", language: "tr", speed: 0.96 }),
     });
     if (!response.ok) {
       const payload = await response.json().catch(() => null) as { error?: string } | null;
-      throw new Error(payload?.error || "Türkçe ses oluşturulamadı.");
+      throw new Error(payload?.error || "Türkçe kadın sesi oluşturulamadı.");
     }
 
     this.releaseTtsAudio();
@@ -219,9 +225,15 @@ export class RealtimeVoiceGuide {
 
     await new Promise<void>((resolve, reject) => {
       audio.addEventListener("ended", () => resolve(), { once: true });
-      audio.addEventListener("error", () => reject(new Error("Türkçe ses oynatılamadı.")), { once: true });
+      audio.addEventListener("error", () => reject(new Error("Türkçe kadın sesi oynatılamadı.")), { once: true });
       void audio.play().catch(reject);
-    }).finally(() => this.releaseTtsAudio());
+    }).finally(() => {
+      this.releaseTtsAudio();
+      if (this.audio) {
+        this.audio.muted = this.muted;
+        if (!this.muted) void this.audio.play().catch(() => undefined);
+      }
+    });
   }
 
   async connect() {
@@ -252,14 +264,13 @@ export class RealtimeVoiceGuide {
       const audio = document.createElement("audio");
       audio.autoplay = true;
       audio.controls = false;
-      audio.muted = this.muted;
+      audio.muted = true;
       audio.setAttribute("playsinline", "true");
       audio.style.display = "none";
       document.body.appendChild(audio);
 
       peer.ontrack = event => {
         audio.srcObject = event.streams[0] ?? new MediaStream([event.track]);
-        if (!this.muted) void audio.play().catch(() => undefined);
       };
       peer.onconnectionstatechange = () => {
         if (peer.connectionState === "connected") this.setState(this.muted ? "muted" : "listening");
@@ -319,7 +330,6 @@ export class RealtimeVoiceGuide {
   async speak(text: string) {
     const cleaned = text.replace(/\s+/g, " ").trim();
     if (!cleaned || this.muted) return;
-    await this.connect();
     if (this.state === "speaking" || this.ttsAudio) {
       this.pendingSpeech = cleaned;
       return;
@@ -330,14 +340,15 @@ export class RealtimeVoiceGuide {
       await this.playTurkishTts(cleaned);
       this.transcriptListener?.({ role: "assistant", text: cleaned });
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Türkçe ses oluşturulamadı.";
+      const message = error instanceof Error ? error.message : "Türkçe kadın sesi oluşturulamadı.";
       this.errorListener?.(message);
+      this.setState("error");
     } finally {
-      this.setState(this.muted ? "muted" : "listening");
+      if (this.state !== "error") this.setState(this.muted ? "muted" : this.channel?.readyState === "open" ? "listening" : "idle");
       if (this.pendingSpeech && !this.muted) {
         const next = this.pendingSpeech;
         this.pendingSpeech = "";
-        window.setTimeout(() => void this.speak(next), 200);
+        window.setTimeout(() => void this.speak(next), 300);
       }
     }
   }
@@ -345,7 +356,13 @@ export class RealtimeVoiceGuide {
   cancel() {
     this.pendingSpeech = "";
     this.releaseTtsAudio();
-    if (this.state === "speaking" && this.channel?.readyState === "open") this.channel.send(JSON.stringify({ type: "response.cancel" }));
+    if (this.channel?.readyState === "open") {
+      try { this.channel.send(JSON.stringify({ type: "response.cancel" })); } catch { /* bağlantı kapanmış olabilir */ }
+    }
+    if (this.audio) {
+      this.audio.pause();
+      this.audio.muted = true;
+    }
     if (this.state !== "error") this.setState(this.muted ? "muted" : this.channel?.readyState === "open" ? "listening" : "idle");
   }
 
