@@ -20,6 +20,8 @@ import {
   LayoutDashboard,
   Settings,
   Grid2X2,
+  Search,
+  WalletCards,
 } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
@@ -34,6 +36,7 @@ const navItems = [
   { href: "/renk-danismani", label: "Renk Danışmanı", icon: Palette },
   { href: "/montaj-rehberi", label: "Montaj Rehberi", icon: Wrench },
   { href: "/siparis", label: "Sipariş", icon: ShoppingCart },
+  { href: "/siparis-sorgula", label: "Sipariş Sorgula", icon: Search },
 ];
 
 export default function Layout({ children }: { children: React.ReactNode }) {
@@ -86,6 +89,11 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     <span className="max-w-28 truncate">{accountLabel}</span>
                   </Button>
                 </Link>
+                {user?.role === "admin" && (
+                  <Link href="/yonetici/fiyatlar">
+                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Fiyat yönetimi"><WalletCards className="h-4 w-4" /></Button>
+                  </Link>
+                )}
                 {user?.role === "user" && (
                   <Link href="/hesap-ayarlari">
                     <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Hesap ayarları"><Settings className="h-4 w-4" /></Button>
@@ -123,6 +131,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                     {isAuthenticated ? (
                       <>
                         <Link href={accountHref} onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><AccountIcon className="h-4 w-4" />{accountLabel}</Button></Link>
+                        {user?.role === "admin" && <Link href="/yonetici/fiyatlar" onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><WalletCards className="h-4 w-4" />Fiyat Yönetimi</Button></Link>}
                         {user?.role === "user" && <Link href="/hesap-ayarlari" onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><Settings className="h-4 w-4" />Hesap Ayarları</Button></Link>}
                         <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}><LogOut className="h-4 w-4" />Çıkış Yap</Button>
                       </>
@@ -153,6 +162,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
                 <Link href="/olcu-asistani"><span className="block hover:text-foreground transition-colors cursor-pointer">Ölçü Asistanı</span></Link>
                 <Link href="/fiyat-hesapla"><span className="block hover:text-foreground transition-colors cursor-pointer">Fiyat Hesaplama</span></Link>
                 <Link href="/siparis"><span className="block hover:text-foreground transition-colors cursor-pointer">Online Sipariş</span></Link>
+                <Link href="/siparis-sorgula"><span className="block hover:text-foreground transition-colors cursor-pointer">Sipariş Sorgulama</span></Link>
               </div>
             </div>
             <div className="space-y-3">
