@@ -50,7 +50,11 @@ export function getFabricVariants(seriesId: string): FabricVariant[] {
 }
 
 export function getCurrentFabricPrice(seriesId: string, defaultPrice: number): number {
-  return seriesId === "nova" ? 500 : defaultPrice;
+  return seriesId === "nova" ? 485 : defaultPrice;
+}
+
+export function getMountingSurcharge(mountType: string): number {
+  return mountType === "yapistirma" || mountType === "yapıştırma" ? 65 : 0;
 }
 
 export function formatFabricVariant(variant: FabricVariant): string {
