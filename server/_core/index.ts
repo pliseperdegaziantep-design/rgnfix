@@ -17,7 +17,28 @@ import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
 import { getLLMStatus, invokeLLM, toPublicLLMError } from "./llm";
 
+function normalizeHostingerDatabaseUrl() {
+  const raw = process.env.DATABASE_URL?.trim();
+  if (!raw) return;
+
+  try {
+    const url = new URL(raw);
+    const isHostingerMysqlHost = url.hostname.endsWith(".hstgr.io");
+    if (!isHostingerMysqlHost) return;
+
+    // Hostinger Node.js uygulaması ve MySQL aynı hosting hesabında çalıştığında
+    // dış MySQL adresi yerine yerel bağlantı kullanılmalıdır.
+    url.hostname = "127.0.0.1";
+    url.port = "3306";
+    process.env.DATABASE_URL = url.toString();
+    console.log("[Database] Hostinger local MySQL connection selected (127.0.0.1:3306)");
+  } catch (error) {
+    console.warn("[Database] DATABASE_URL format could not be normalized:", error instanceof Error ? error.message : String(error));
+  }
+}
+
 async function startServer() {
+  normalizeHostingerDatabaseUrl();
   await ensureAppSchema();
 
   const app = express();
