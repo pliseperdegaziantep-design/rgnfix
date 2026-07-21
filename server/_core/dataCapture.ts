@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import type { Express, Request } from "express";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import { appDataRecords } from "../../drizzle/schema";
 import { getDb } from "../db";
@@ -19,6 +20,7 @@ const captureSchema = z.object({
 });
 
 const requestLog = new Map<string, { count: number; resetAt: number }>();
+let tableReady = false;
 
 function getClientKey(req: Request) {
   const forwarded = req.headers["x-forwarded-for"];
@@ -35,6 +37,27 @@ function isRateLimited(key: string) {
   }
   current.count += 1;
   return current.count > 30;
+}
+
+async function ensureDataTable(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
+  if (tableReady) return;
+  await db.execute(sql.raw(`
+    CREATE TABLE IF NOT EXISTS appDataRecords (
+      id int NOT NULL AUTO_INCREMENT,
+      userId int NULL,
+      sessionId varchar(64) NOT NULL,
+      recordType varchar(40) NOT NULL,
+      payload json NOT NULL,
+      ipHash varchar(64) NULL,
+      userAgent varchar(500) NULL,
+      createdAt timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY appDataRecords_sessionId_index (sessionId),
+      KEY appDataRecords_recordType_index (recordType),
+      KEY appDataRecords_createdAt_index (createdAt)
+    )
+  `));
+  tableReady = true;
 }
 
 export function registerDataCaptureRoutes(app: Express) {
@@ -64,6 +87,7 @@ export function registerDataCaptureRoutes(app: Express) {
     }
 
     try {
+      await ensureDataTable(db);
       await db.insert(appDataRecords).values({
         sessionId: parsed.data.sessionId,
         recordType: parsed.data.recordType,
