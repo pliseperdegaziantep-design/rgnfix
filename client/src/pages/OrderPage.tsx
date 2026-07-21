@@ -1,89 +1,42 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearch } from "wouter";
+import { ShoppingCart, CheckCircle2, Plus, Trash2, Search } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/_core/hooks/useAuth";
-import { startLogin } from "@/const";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
-import {
-  ShoppingCart,
-  CheckCircle2,
-  ArrowLeft,
-  ArrowRight,
-  LogIn,
-  Plus,
-  Trash2,
-  DoorOpen,
-  PackageSearch,
-} from "lucide-react";
 import { trpc } from "@/lib/trpc";
 import { CASE_TYPES, MOUNT_TYPES, PROFILE_COLORS, WINDOW_TYPES } from "@shared/types";
 import { formatFabricVariant, getCurrentFabricPrice, getFabricVariants, type FabricVariant } from "@shared/fabricCatalog";
-import { toast } from "sonner";
 
-type MeasurementRow = {
-  id: string;
-  width: string;
-  height: string;
-  quantity: string;
-  deductSashAllowance: boolean;
-};
+type MeasurementRow = { id: string; width: string; height: string; quantity: string };
+type PriceSetting = { seriesId: string; seriesName: string; basePrice: string | number; adhesiveSurcharge: string | number };
 
-const emptyMeasurement = (id: string): MeasurementRow => ({
-  id,
-  width: "",
-  height: "",
-  quantity: "1",
-  deductSashAllowance: false,
-});
-
-function parseCm(value: string) {
-  return Number(String(value).replace(",", ".")) || 0;
-}
-
+function parseCm(value: string) { return Number(String(value).replace(",", ".")) || 0; }
 function normalizeWindowType(value: string) {
-  const map: Record<string, string> = {
-    cam_balkon: "cam-balkon",
-    pvc_pencere: "pvc-cam",
-    pvc_kapi: "balkon-kapisi",
-    pvc_surgulu_kapi: "surgulu-kapi",
-    aluminyum_pencere: "aluminyum",
-    aluminyum_kapi: "aluminyum",
-    aluminyum_surgulu_kapi: "surgulu-kapi",
-  };
+  const map: Record<string, string> = { cam_balkon: "cam-balkon", pvc_pencere: "pvc-cam", pvc_kapi: "balkon-kapisi", pvc_surgulu_kapi: "surgulu-kapi", aluminyum_pencere: "aluminyum", aluminyum_kapi: "aluminyum", aluminyum_surgulu_kapi: "surgulu-kapi" };
   return map[value] || value;
 }
-
 function readApiVariants(colors: unknown): FabricVariant[] {
   if (!Array.isArray(colors)) return [];
-  return colors
-    .filter((color): color is string => typeof color === "string" && color.trim().length > 0)
-    .map((color, index) => ({ code: `VR ${String(index + 1).padStart(2, "0")}`, name: color.trim() }));
+  return colors.filter((color): color is string => typeof color === "string" && color.trim().length > 0).map((color, index) => ({ code: `VR ${String(index + 1).padStart(2, "0")}`, name: color.trim() }));
 }
 
 export default function OrderPage() {
-  const { isAuthenticated, user } = useAuth();
+  const { user } = useAuth();
   const search = useSearch();
   const params = useMemo(() => new URLSearchParams(search), [search]);
-  const initialSeriesSlug = params.get("series");
   const { data: fabrics } = trpc.fabrics.list.useQuery();
-
-  const [step, setStep] = useState(1);
+  const createOrderMutation = trpc.orders.create.useMutation();
+  const [priceSettings, setPriceSettings] = useState<Record<string, PriceSetting>>({});
   const [createdOrderNumber, setCreatedOrderNumber] = useState("");
-  const [measurements, setMeasurements] = useState<MeasurementRow[]>([
-    {
-      ...emptyMeasurement("1"),
-      width: params.get("width") || "",
-      height: params.get("height") || "",
-      quantity: params.get("count") || "1",
-    },
-  ]);
-  const [orderData, setOrderData] = useState({
-    fabricId: params.get("fabric") || "",
+  const [measurements, setMeasurements] = useState<MeasurementRow[]>([{ id: "1", width: params.get("width") || "", height: params.get("height") || "", quantity: params.get("count") || "1" }]);
+  const [form, setForm] = useState({
+    fabricId: "",
     fabricColor: params.get("fabricColor") || "",
     windowType: normalizeWindowType(params.get("window") || ""),
     profileColor: params.get("profile") || "",
@@ -96,29 +49,20 @@ export default function OrderPage() {
     customerNote: "",
   });
 
-  const createOrderMutation = trpc.orders.create.useMutation();
-  const selectedFabric = fabrics?.find(fabric => fabric.id.toString() === orderData.fabricId);
-  const catalogVariants = selectedFabric ? getFabricVariants(selectedFabric.slug) : [];
-  const variantOptions = catalogVariants.length > 0 ? catalogVariants : readApiVariants(selectedFabric?.colors);
-  const selectedPricePerSqm = selectedFabric
-    ? getCurrentFabricPrice(selectedFabric.slug, parseFloat(selectedFabric.pricePerSqm))
-    : 0;
-  const availableProfileColors = orderData.caseType === "slim"
-    ? PROFILE_COLORS.filter(color => color.id === "beyaz" || color.id === "antrasit")
-    : PROFILE_COLORS;
-  const isCamBalcony = orderData.windowType === "cam-balkon";
+  useEffect(() => {
+    void fetch("/api/prices", { cache: "no-store" }).then(response => response.json()).then((data: { prices?: PriceSetting[] }) => setPriceSettings(Object.fromEntries((data.prices || []).map(item => [item.seriesId, item])))).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
-    if (!initialSeriesSlug || orderData.fabricId || !fabrics?.length) return;
-    const matchedFabric = fabrics.find(fabric => fabric.slug === initialSeriesSlug);
-    if (matchedFabric) {
-      setOrderData(current => ({ ...current, fabricId: matchedFabric.id.toString() }));
-    }
-  }, [fabrics, initialSeriesSlug, orderData.fabricId]);
+    const series = params.get("series");
+    if (!series || form.fabricId || !fabrics?.length) return;
+    const match = fabrics.find(fabric => fabric.slug === series);
+    if (match) setForm(current => ({ ...current, fabricId: String(match.id) }));
+  }, [fabrics, form.fabricId, params]);
 
   useEffect(() => {
     if (!user || user.role !== "user") return;
-    setOrderData(current => ({
+    setForm(current => ({
       ...current,
       customerName: current.customerName || user.name || "",
       customerPhone: current.customerPhone || user.phone || "",
@@ -127,339 +71,90 @@ export default function OrderPage() {
     }));
   }, [user]);
 
-  const getNetWidth = (measurement: MeasurementRow) => {
-    const width = parseCm(measurement.width);
-    return Math.max(width - (isCamBalcony && measurement.deductSashAllowance ? 2 : 0), 0);
-  };
+  const selectedFabric = fabrics?.find(fabric => String(fabric.id) === form.fabricId);
+  const catalogVariants = selectedFabric ? getFabricVariants(selectedFabric.slug) : [];
+  const variants = catalogVariants.length ? catalogVariants : readApiVariants(selectedFabric?.colors);
+  const configured = selectedFabric ? priceSettings[selectedFabric.slug] : undefined;
+  const basePrice = selectedFabric ? Number(configured?.basePrice ?? getCurrentFabricPrice(selectedFabric.slug, Number(selectedFabric.pricePerSqm))) : 0;
+  const adhesiveSurcharge = form.mountType === "yapisma" ? Number(configured?.adhesiveSurcharge ?? 65) : 0;
+  const caseSurcharge = CASE_TYPES.find(item => item.id === form.caseType)?.surchargePerSqm || 0;
+  const pricePerSqm = basePrice + adhesiveSurcharge + caseSurcharge;
+  const hookRestricted = ["pvc-cam", "aluminyum", "standart", "balkon-kapisi", "surgulu-kapi"].includes(form.windowType);
+  const availableMountTypes = hookRestricted ? MOUNT_TYPES.filter(item => item.id !== "kancali") : MOUNT_TYPES;
+  const availableProfiles = form.caseType === "slim" ? PROFILE_COLORS.filter(item => ["beyaz", "antrasit"].includes(item.id)) : PROFILE_COLORS;
 
-  const updateMeasurement = (id: string, patch: Partial<MeasurementRow>) => {
-    setMeasurements(current => current.map(measurement => measurement.id === id ? { ...measurement, ...patch } : measurement));
-  };
+  const totalPrice = useMemo(() => measurements.reduce((sum, item) => {
+    const width = parseCm(item.width);
+    const height = parseCm(item.height);
+    const quantity = Number.parseInt(item.quantity, 10) || 1;
+    if (width <= 0 || height <= 0) return sum;
+    return sum + Math.max((width * height) / 10000, 1) * pricePerSqm * quantity;
+  }, 0), [measurements, pricePerSqm]);
 
-  const addMeasurement = () => {
-    const nextId = String(Math.max(...measurements.map(measurement => Number(measurement.id)), 0) + 1);
-    setMeasurements(current => [...current, emptyMeasurement(nextId)]);
-  };
+  const updateMeasurement = (id: string, field: keyof MeasurementRow, value: string) => setMeasurements(current => current.map(item => item.id === id ? { ...item, [field]: value } : item));
+  const addMeasurement = () => setMeasurements(current => [...current, { id: String(Date.now()), width: "", height: "", quantity: "1" }]);
+  const removeMeasurement = (id: string) => setMeasurements(current => current.length > 1 ? current.filter(item => item.id !== id) : current);
 
-  const removeMeasurement = (id: string) => {
-    setMeasurements(current => current.length > 1 ? current.filter(measurement => measurement.id !== id) : current);
-  };
-
-  const totalPrice = useMemo(() => {
-    if (!selectedFabric || selectedPricePerSqm <= 0) return 0;
-    const caseSurcharge = CASE_TYPES.find(item => item.id === orderData.caseType)?.surchargePerSqm || 0;
-    const unitPrice = selectedPricePerSqm + caseSurcharge;
-
-    return measurements.reduce((total, measurement) => {
-      const width = getNetWidth(measurement);
-      const height = parseCm(measurement.height);
-      if (width <= 0 || height <= 0) return total;
-      const area = Math.max((width * height) / 10000, 1);
-      return total + area * unitPrice * (parseInt(measurement.quantity, 10) || 1);
-    }, 0);
-  }, [selectedFabric, selectedPricePerSqm, measurements, orderData.caseType, isCamBalcony]);
-
-  const canContinue = useMemo(() => {
-    if (step === 1) {
-      return Boolean(
-        orderData.fabricId &&
-        orderData.fabricColor &&
-        orderData.windowType &&
-        orderData.profileColor &&
-        orderData.mountType &&
-        orderData.caseType
-      );
-    }
-    if (step === 2) {
-      return measurements.length > 0 && measurements.every(measurement =>
-        getNetWidth(measurement) > 0 && parseCm(measurement.height) > 0 && parseInt(measurement.quantity, 10) > 0
-      );
-    }
-    if (step === 3) {
-      return Boolean(
-        orderData.customerName.trim() &&
-        orderData.customerPhone.trim() &&
-        orderData.customerCity.trim() &&
-        orderData.customerAddress.trim()
-      );
-    }
-    return true;
-  }, [orderData, step, measurements, isCamBalcony]);
-
-  const goForward = () => {
-    if (!canContinue) {
-      toast.error("Devam etmek için gerekli alanları doldurun.");
+  const submit = async () => {
+    if (!selectedFabric || !form.fabricColor || !form.windowType || !form.profileColor || !form.mountType || !form.customerName.trim() || !form.customerPhone.trim() || !form.customerCity.trim() || !form.customerAddress.trim()) {
+      toast.error("Lütfen zorunlu alanları doldurun.");
       return;
     }
-    setStep(current => current + 1);
-  };
-
-  const handleSubmit = async () => {
+    if (!measurements.every(item => parseCm(item.width) > 0 && parseCm(item.height) > 0 && Number(item.quantity) > 0)) {
+      toast.error("Bütün ölçüleri kontrol edin.");
+      return;
+    }
     try {
-      const firstMeasurement = measurements[0];
-      const totalQuantity = measurements.reduce(
-        (total, measurement) => total + (parseInt(measurement.quantity, 10) || 1),
-        0
-      );
-      const measurementSummary = measurements.map((measurement, index) => {
-        const openingText = isCamBalcony && measurement.deductSashAllowance
-          ? `, açılır kanat, üretim eni ${getNetWidth(measurement)} cm`
-          : "";
-        return `${index + 1}. ölçü: ${measurement.width} × ${measurement.height} cm, ${measurement.quantity} adet${openingText}`;
-      }).join("\n");
-
+      const first = measurements[0];
+      const totalQuantity = measurements.reduce((sum, item) => sum + (Number.parseInt(item.quantity, 10) || 1), 0);
+      const detail = measurements.map((item, index) => `${index + 1}. ölçü: ${item.width} × ${item.height} cm, ${item.quantity} adet`).join("\n");
       const result = await createOrderMutation.mutateAsync({
-        fabricId: parseInt(orderData.fabricId, 10),
-        fabricName: selectedFabric?.name || "",
-        fabricColor: orderData.fabricColor,
-        profileColor: orderData.profileColor,
-        mountType: orderData.mountType,
-        caseType: orderData.caseType,
-        width: getNetWidth(firstMeasurement),
-        height: parseCm(firstMeasurement.height),
+        fabricId: Number(form.fabricId),
+        fabricName: selectedFabric.name,
+        fabricColor: form.fabricColor,
+        profileColor: form.profileColor,
+        mountType: form.mountType,
+        caseType: form.caseType,
+        width: parseCm(first.width),
+        height: parseCm(first.height),
         quantity: totalQuantity,
         totalPrice,
-        customerName: orderData.customerName,
-        customerPhone: orderData.customerPhone,
-        customerAddress: orderData.customerAddress,
-        customerCity: orderData.customerCity,
-        customerNote: [
-          orderData.customerNote.trim(),
-          `Uygulama alanı: ${WINDOW_TYPES.find(type => type.id === orderData.windowType)?.name || orderData.windowType}`,
-          "Ölçü detayları:",
-          measurementSummary,
-        ].filter(Boolean).join("\n"),
+        customerName: form.customerName,
+        customerPhone: form.customerPhone,
+        customerAddress: form.customerAddress,
+        customerCity: form.customerCity,
+        customerNote: [form.customerNote.trim(), `Uygulama alanı: ${WINDOW_TYPES.find(item => item.id === form.windowType)?.name || form.windowType}`, `Uygulanan m² fiyatı: ${pricePerSqm} TL`, detail].filter(Boolean).join("\n"),
       });
-
       setCreatedOrderNumber(result.orderNumber);
-      setStep(4);
-      toast.success(`Siparişiniz oluşturuldu. Numaranız: ${result.orderNumber}`);
+      toast.success(`Sipariş oluşturuldu: ${result.orderNumber}`);
+      window.scrollTo({ top: 0, behavior: "smooth" });
     } catch (error) {
       console.error(error);
-      toast.error("Sipariş oluşturulurken bir hata oluştu.");
+      toast.error("Sipariş oluşturulamadı.");
     }
   };
 
-  return (
-    <div className="container py-8 max-w-3xl">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4">
-          <ShoppingCart className="h-3.5 w-3.5" /> Online Sipariş
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Sipariş Oluştur</h1>
-        <p className="text-sm text-muted-foreground">Ürünü ve ölçüleri seçerek siparişinizi oluşturun.</p>
+  if (createdOrderNumber) return <div className="container max-w-xl py-16"><Card className="border-emerald-200"><CardContent className="p-8 text-center"><CheckCircle2 className="mx-auto h-16 w-16 text-emerald-600" /><h1 className="mt-5 text-3xl font-bold">Siparişiniz Alındı</h1><p className="mt-2 text-muted-foreground">Sipariş numaranız</p><p className="mt-2 text-5xl font-black text-primary">{createdOrderNumber}</p><p className="mt-4 text-sm text-muted-foreground">Bu numarayı kaydedin. Üye olmadan da sipariş durumunu sorgulayabilirsiniz.</p><div className="mt-6 grid gap-3 sm:grid-cols-2"><Button asChild className="gap-2"><Link href={`/siparis-sorgula`}><Search className="h-4 w-4" /> Siparişi Sorgula</Link></Button><Button variant="outline" onClick={() => { setCreatedOrderNumber(""); }}>Yeni Sipariş</Button></div></CardContent></Card></div>;
+
+  return <div className="container max-w-4xl py-8">
+    <div className="mb-8 text-center"><div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-sm font-medium text-primary"><ShoppingCart className="h-4 w-4" /> Online Sipariş</div><h1 className="mt-4 text-3xl font-serif font-bold">Plise Perde Siparişi Oluştur</h1><p className="mt-2 text-muted-foreground">Güncel yönetici fiyatlarıyla hesaplanır. Sipariş numaraları 10000’den başlayarak sıralı ilerler.</p></div>
+    <div className="grid gap-6 lg:grid-cols-3">
+      <div className="space-y-6 lg:col-span-2">
+        <Card><CardHeader><CardTitle>Ürün Seçimi</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-2"><Label>Kumaş Serisi *</Label><Select value={form.fabricId} onValueChange={value => setForm(current => ({ ...current, fabricId: value, fabricColor: "" }))}><SelectTrigger><SelectValue placeholder="Kumaş seçin" /></SelectTrigger><SelectContent>{fabrics?.map(fabric => <SelectItem key={fabric.id} value={String(fabric.id)}>{fabric.name}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Varyant *</Label><Select value={form.fabricColor} onValueChange={value => setForm(current => ({ ...current, fabricColor: value }))} disabled={!selectedFabric}><SelectTrigger><SelectValue placeholder="Varyant seçin" /></SelectTrigger><SelectContent>{variants.map(variant => <SelectItem key={variant.code} value={formatFabricVariant(variant)}>{formatFabricVariant(variant)}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Uygulama Alanı *</Label><Select value={form.windowType} onValueChange={value => setForm(current => ({ ...current, windowType: value, mountType: value === "pvc-cam" || value === "aluminyum" ? "" : current.mountType }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{WINDOW_TYPES.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Montaj Tipi *</Label><Select value={form.mountType} onValueChange={value => setForm(current => ({ ...current, mountType: value }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{availableMountTypes.map(item => <SelectItem key={item.id} value={item.id}>{item.name}{item.id === "yapisma" ? ` (+${Number(configured?.adhesiveSurcharge ?? 65)} TL/m²)` : ""}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Kasa Tipi *</Label><Select value={form.caseType} onValueChange={value => setForm(current => ({ ...current, caseType: value as "kalin" | "slim", profileColor: value === "slim" && !["beyaz", "antrasit"].includes(current.profileColor) ? "" : current.profileColor }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CASE_TYPES.map(item => <SelectItem key={item.id} value={item.id}>{item.name}{item.surchargePerSqm ? ` (+${item.surchargePerSqm} TL/m²)` : ""}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Profil Rengi *</Label><Select value={form.profileColor} onValueChange={value => setForm(current => ({ ...current, profileColor: value }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{availableProfiles.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
+        </CardContent></Card>
+
+        <Card><CardHeader><div className="flex items-center justify-between"><CardTitle>Ölçüler</CardTitle><Button variant="outline" size="sm" onClick={addMeasurement} className="gap-2"><Plus className="h-4 w-4" /> Ölçü Ekle</Button></div></CardHeader><CardContent className="space-y-3">{measurements.map((item, index) => <div key={item.id} className="grid grid-cols-[1fr_1fr_90px_auto] gap-2 rounded-xl border p-3"><div><Label className="text-xs">{index + 1}. En (cm)</Label><Input inputMode="decimal" value={item.width} onChange={event => updateMeasurement(item.id, "width", event.target.value)} /></div><div><Label className="text-xs">Boy (cm)</Label><Input inputMode="decimal" value={item.height} onChange={event => updateMeasurement(item.id, "height", event.target.value)} /></div><div><Label className="text-xs">Adet</Label><Input type="number" min="1" value={item.quantity} onChange={event => updateMeasurement(item.id, "quantity", event.target.value)} /></div><Button variant="ghost" size="icon" onClick={() => removeMeasurement(item.id)} className="mt-5 text-destructive"><Trash2 className="h-4 w-4" /></Button></div>)}</CardContent></Card>
+
+        <Card><CardHeader><CardTitle>Teslimat Bilgileri</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Ad Soyad *</Label><Input value={form.customerName} onChange={event => setForm(current => ({ ...current, customerName: event.target.value }))} /></div><div className="space-y-2"><Label>Telefon *</Label><Input inputMode="tel" value={form.customerPhone} onChange={event => setForm(current => ({ ...current, customerPhone: event.target.value }))} /></div><div className="space-y-2"><Label>Şehir *</Label><Input value={form.customerCity} onChange={event => setForm(current => ({ ...current, customerCity: event.target.value }))} /></div><div className="space-y-2"><Label>Adres *</Label><Input value={form.customerAddress} onChange={event => setForm(current => ({ ...current, customerAddress: event.target.value }))} /></div><div className="space-y-2 sm:col-span-2"><Label>Sipariş Notu</Label><Textarea value={form.customerNote} onChange={event => setForm(current => ({ ...current, customerNote: event.target.value }))} /></div></CardContent></Card>
       </div>
 
-      {!isAuthenticated && step < 4 && (
-        <Card className="mb-6 border-amber-200 bg-amber-50/70 dark:border-amber-900/50 dark:bg-amber-950/20">
-          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-start gap-3">
-              <LogIn className="h-5 w-5 text-amber-600 mt-0.5" />
-              <div>
-                <p className="text-sm font-medium">Siparişinizi hesabınıza kaydedin</p>
-                <p className="text-xs text-muted-foreground">Giriş yaparsanız siparişi takip edebilir ve 24 saat içinde iptal edebilirsiniz.</p>
-              </div>
-            </div>
-            <Button variant="outline" size="sm" onClick={() => startLogin()} className="rounded-lg gap-2">
-              <LogIn className="h-4 w-4" /> Giriş Yap / Kayıt Ol
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      <div className="flex items-center justify-center gap-2 mb-8">
-        {["Ürün", "Ölçü", "Teslimat", "Onay"].map((label, index) => (
-          <div key={label} className="flex items-center gap-2">
-            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium ${
-              step > index + 1
-                ? "bg-primary text-primary-foreground"
-                : step === index + 1
-                  ? "bg-primary/10 text-primary border-2 border-primary"
-                  : "bg-muted text-muted-foreground"
-            }`}>
-              {step > index + 1 ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-            </div>
-            {index < 3 && <div className={`w-6 h-0.5 ${step > index + 1 ? "bg-primary" : "bg-muted"}`} />}
-          </div>
-        ))}
-      </div>
-
-      <Card className="border-border/50">
-        <CardContent className="p-6 space-y-6">
-          {step === 1 && (
-            <div className="space-y-5">
-              <div className="space-y-2">
-                <Label>Kumaş Serisi</Label>
-                <Select value={orderData.fabricId} onValueChange={value => setOrderData({ ...orderData, fabricId: value, fabricColor: "" })}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Kumaş seçin" /></SelectTrigger>
-                  <SelectContent>
-                    {fabrics?.map(fabric => (
-                      <SelectItem key={fabric.id} value={fabric.id.toString()}>
-                        {fabric.name} - {getCurrentFabricPrice(fabric.slug, parseFloat(fabric.pricePerSqm))} ₺/m²
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Kumaş Varyantı</Label>
-                <Select value={orderData.fabricColor} onValueChange={value => setOrderData({ ...orderData, fabricColor: value })} disabled={!selectedFabric}>
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder={selectedFabric ? "Varyant seçin" : "Önce kumaş seçin"} /></SelectTrigger>
-                  <SelectContent>
-                    {variantOptions.map(variant => (
-                      <SelectItem key={variant.code} value={formatFabricVariant(variant)}>{formatFabricVariant(variant)}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Uygulama Alanı</Label>
-                <Select
-                  value={orderData.windowType}
-                  onValueChange={value => {
-                    setOrderData({ ...orderData, windowType: value });
-                    if (value !== "cam-balkon") {
-                      setMeasurements(current => current.map(measurement => ({ ...measurement, deductSashAllowance: false })));
-                    }
-                  }}
-                >
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Uygulama alanını seçin" /></SelectTrigger>
-                  <SelectContent>
-                    {WINDOW_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label>Profil Rengi</Label>
-                  <Select value={orderData.profileColor} onValueChange={value => setOrderData({ ...orderData, profileColor: value })}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Profil rengi seçin" /></SelectTrigger>
-                    <SelectContent>
-                      {availableProfileColors.map(color => <SelectItem key={color.id} value={color.id}>{color.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Montaj Tipi</Label>
-                  <Select value={orderData.mountType} onValueChange={value => setOrderData({ ...orderData, mountType: value })}>
-                    <SelectTrigger className="rounded-xl"><SelectValue placeholder="Montaj tipi seçin" /></SelectTrigger>
-                    <SelectContent>
-                      {MOUNT_TYPES.map(type => <SelectItem key={type.id} value={type.id}>{type.name}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Kasa Tipi</Label>
-                <Select
-                  value={orderData.caseType}
-                  onValueChange={value => {
-                    const nextCase = value === "slim" ? "slim" : "kalin";
-                    const profileAllowed = nextCase === "kalin" || orderData.profileColor === "beyaz" || orderData.profileColor === "antrasit";
-                    setOrderData({ ...orderData, caseType: nextCase, profileColor: profileAllowed ? orderData.profileColor : "" });
-                  }}
-                >
-                  <SelectTrigger className="rounded-xl"><SelectValue placeholder="Kasa tipi seçin" /></SelectTrigger>
-                  <SelectContent>
-                    {CASE_TYPES.map(item => (
-                      <SelectItem key={item.id} value={item.id}>{item.name}{item.surchargePerSqm ? ` (+${item.surchargePerSqm} ₺/m²)` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          )}
-
-          {step === 2 && (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between gap-4">
-                <h3 className="font-semibold">Ölçüler</h3>
-                <Button type="button" variant="outline" size="sm" onClick={addMeasurement} className="shrink-0 gap-2 rounded-xl"><Plus className="h-4 w-4" /> Ölçü Ekle</Button>
-              </div>
-
-              <div className="space-y-4">
-                {measurements.map((measurement, index) => (
-                  <div key={measurement.id} className="rounded-2xl border border-border/60 bg-muted/20 p-4 sm:p-5">
-                    <div className="mb-4 flex items-center justify-between">
-                      <strong className="text-sm">Ölçü {index + 1}</strong>
-                      {measurements.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeMeasurement(measurement.id)} className="h-8 gap-1.5 text-destructive hover:text-destructive"><Trash2 className="h-3.5 w-3.5" /> Kaldır</Button>
-                      )}
-                    </div>
-
-                    <div className="grid sm:grid-cols-2 gap-4">
-                      <div className="space-y-2"><Label>EN (cm)</Label><Input inputMode="decimal" value={measurement.width} onChange={event => updateMeasurement(measurement.id, { width: event.target.value })} className="rounded-xl" placeholder="51" /></div>
-                      <div className="space-y-2"><Label>BOY (cm)</Label><Input inputMode="decimal" value={measurement.height} onChange={event => updateMeasurement(measurement.id, { height: event.target.value })} className="rounded-xl" placeholder="150" /></div>
-                    </div>
-
-                    {isCamBalcony && (
-                      <div className="mt-4 flex items-center gap-3 rounded-xl border border-secondary/20 bg-secondary/5 p-4">
-                        <Switch id={`sash-${measurement.id}`} checked={measurement.deductSashAllowance} onCheckedChange={checked => updateMeasurement(measurement.id, { deductSashAllowance: checked })} />
-                        <Label htmlFor={`sash-${measurement.id}`} className="cursor-pointer">
-                          <span className="flex items-center gap-2"><DoorOpen className="h-4 w-4 text-secondary" /> Açılır kanat</span>
-                          <span className="mt-1 block text-xs font-normal text-muted-foreground">İşaretlenirse yalnızca enden 2 cm düşülür.</span>
-                        </Label>
-                      </div>
-                    )}
-
-                    <div className="mt-4 space-y-2"><Label>Adet</Label><Input type="number" min="1" value={measurement.quantity} onChange={event => updateMeasurement(measurement.id, { quantity: event.target.value })} className="w-24 rounded-xl" /></div>
-                  </div>
-                ))}
-              </div>
-
-              {totalPrice > 0 && (
-                <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 flex justify-between items-center"><span className="text-sm font-medium">Toplam</span><span className="text-lg font-bold text-primary">{totalPrice.toLocaleString("tr-TR")} ₺</span></div>
-              )}
-            </div>
-          )}
-
-          {step === 3 && (
-            <div className="space-y-5">
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div className="space-y-2"><Label>Ad Soyad</Label><Input value={orderData.customerName} onChange={event => setOrderData({ ...orderData, customerName: event.target.value })} className="rounded-xl" /></div>
-                <div className="space-y-2"><Label>Telefon</Label><Input value={orderData.customerPhone} onChange={event => setOrderData({ ...orderData, customerPhone: event.target.value })} className="rounded-xl" placeholder="05XX XXX XXXX" /></div>
-              </div>
-              <div className="space-y-2"><Label>Şehir</Label><Input value={orderData.customerCity} onChange={event => setOrderData({ ...orderData, customerCity: event.target.value })} className="rounded-xl" /></div>
-              <div className="space-y-2"><Label>Adres</Label><Textarea value={orderData.customerAddress} onChange={event => setOrderData({ ...orderData, customerAddress: event.target.value })} className="rounded-xl" rows={3} /></div>
-              <div className="space-y-2"><Label>Not (Opsiyonel)</Label><Textarea value={orderData.customerNote} onChange={event => setOrderData({ ...orderData, customerNote: event.target.value })} className="rounded-xl" rows={2} /></div>
-            </div>
-          )}
-
-          {step === 4 && (
-            <div className="text-center py-8 space-y-5">
-              <div className="w-16 h-16 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center mx-auto"><CheckCircle2 className="h-8 w-8 text-green-600" /></div>
-              <div><h3 className="text-xl font-serif font-bold">Siparişiniz Alındı!</h3><p className="mt-2 text-muted-foreground text-sm">Sipariş numaranızı saklayın.</p></div>
-              <div className="mx-auto max-w-xs rounded-2xl border border-primary/20 bg-primary/5 p-5"><span className="text-xs uppercase tracking-wider text-muted-foreground">Sipariş Numarası</span><strong className="mt-2 block text-4xl tracking-[0.18em] text-primary">{createdOrderNumber}</strong></div>
-              <div className="flex flex-col sm:flex-row justify-center gap-3">
-                {isAuthenticated ? (
-                  <Link href={user?.role === "admin" ? "/yonetici" : "/hesabim"}><Button className="gap-2"><PackageSearch className="h-4 w-4" /> Siparişi Takip Et</Button></Link>
-                ) : (
-                  <Button onClick={() => startLogin()} className="gap-2"><LogIn className="h-4 w-4" /> Kayıt Ol ve Takip Et</Button>
-                )}
-                <Button variant="outline" onClick={() => window.location.reload()}>Yeni Sipariş Oluştur</Button>
-              </div>
-            </div>
-          )}
-
-          {step < 4 && (
-            <div className="flex justify-between pt-4 border-t">
-              <Button variant="ghost" onClick={() => setStep(step - 1)} disabled={step === 1} className="gap-2"><ArrowLeft className="h-4 w-4" /> Geri</Button>
-              {step < 3 ? (
-                <Button onClick={goForward} className="gap-2 btn-premium">İleri <ArrowRight className="h-4 w-4" /></Button>
-              ) : (
-                <Button onClick={handleSubmit} disabled={createOrderMutation.isPending || !canContinue} className="gap-2 btn-premium">
-                  {createOrderMutation.isPending ? "Gönderiliyor..." : "Siparişi Onayla"}<CheckCircle2 className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Card className="h-fit lg:sticky lg:top-24"><CardHeader><CardTitle>Fiyat Özeti</CardTitle></CardHeader><CardContent className="space-y-4"><div className="space-y-2 text-sm"><div className="flex justify-between"><span>Temel fiyat</span><strong>{basePrice.toLocaleString("tr-TR")} TL/m²</strong></div>{adhesiveSurcharge > 0 && <div className="flex justify-between text-amber-700"><span>Yapıştırma farkı</span><strong>+{adhesiveSurcharge} TL/m²</strong></div>}{caseSurcharge > 0 && <div className="flex justify-between text-amber-700"><span>Slim kasa farkı</span><strong>+{caseSurcharge} TL/m²</strong></div>}<div className="flex justify-between border-t pt-2"><span>Uygulanan fiyat</span><strong>{pricePerSqm.toLocaleString("tr-TR")} TL/m²</strong></div></div><div className="flex justify-between border-t pt-4"><span className="font-semibold">Toplam</span><span className="text-2xl font-bold text-primary">{Math.round(totalPrice).toLocaleString("tr-TR")} TL</span></div><Button onClick={() => void submit()} disabled={createOrderMutation.isPending || totalPrice <= 0} className="w-full h-12 gap-2"><ShoppingCart className="h-4 w-4" /> {createOrderMutation.isPending ? "Oluşturuluyor" : "Siparişi Oluştur"}</Button><p className="text-xs text-muted-foreground">Siparişiniz özel ölçü üretimidir. Bilgileri kontrol ederek onaylayın.</p></CardContent></Card>
     </div>
-  );
+  </div>;
 }
