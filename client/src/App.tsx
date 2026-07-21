@@ -11,6 +11,7 @@ import OnlineStatus from "./components/OnlineStatus";
 const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
+const AdminPrices = lazy(() => import("./pages/AdminPrices"));
 const AIAdvisor = lazy(() => import("./pages/AIAdvisor"));
 const MeasurementAssistant = lazy(() => import("./pages/MeasurementAssistant"));
 const PhotoSupport = lazy(() => import("./pages/PhotoSupport"));
@@ -42,6 +43,7 @@ function Router() {
       <Route path={"/sifre-yenile"} component={ResetPassword} />
       <Route path={"/eposta-dogrula"} component={VerifyEmail} />
       <Route path={"/yonetici"} component={AdminPanel} />
+      <Route path={"/yonetici/fiyatlar"} component={AdminPrices} />
       <Route path={"/ai-danismani"} component={AIAdvisor} />
       <Route path={"/olcu-asistani"} component={MeasurementAssistant} />
       <Route path={"/olcu-fotografi"} component={PhotoSupport} />
