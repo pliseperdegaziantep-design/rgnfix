@@ -10,6 +10,7 @@ import { registerPushRoutes } from "./push";
 import { registerUploadRoutes } from "./uploadRoutes";
 import { registerOpenAiSpeechRoutes } from "./openAiSpeech";
 import { registerRealtimeVoiceRoutes } from "./realtimeVoice";
+import { registerDataCaptureRoutes } from "./dataCapture";
 import { ensureAppSchema } from "../db";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
@@ -98,6 +99,7 @@ async function startServer() {
   registerLocalAuthRoutes(app);
   registerPushRoutes(app);
   registerUploadRoutes(app);
+  registerDataCaptureRoutes(app);
   registerAdminRoutes(app);
   registerOAuthRoutes(app);
 
