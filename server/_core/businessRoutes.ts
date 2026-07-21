@@ -19,25 +19,18 @@ export function registerBusinessRoutes(app: Express) {
       res.status(400).json({ error: "Geçerli bir sipariş numarası girin." });
       return;
     }
-
     const db = await getDb();
     if (!db) {
       res.status(503).json({ error: "Sipariş sorgulama servisi geçici olarak kullanılamıyor." });
       return;
     }
-
-    const [rows] = await db.execute(sql.raw(`
+    const [rows] = await db.execute(sql`
       SELECT orderNumber, status, fabricName, fabricColor, profileColor, mountType,
              caseType, width, height, quantity, totalPrice, createdAt, updatedAt
       FROM orders
-      WHERE orderNumber = ${db.escape ? "?" : "?"}
+      WHERE orderNumber = ${orderNumber}
       LIMIT 1
-    `), [orderNumber] as never).catch(async () => {
-      return db.execute(sql`SELECT orderNumber, status, fabricName, fabricColor, profileColor, mountType,
-        caseType, width, height, quantity, totalPrice, createdAt, updatedAt
-        FROM orders WHERE orderNumber = ${orderNumber} LIMIT 1`);
-    });
-
+    `);
     const result = Array.isArray(rows) ? rows[0] : undefined;
     if (!result) {
       res.status(404).json({ error: "Bu numarayla kayıtlı sipariş bulunamadı." });
@@ -49,17 +42,14 @@ export function registerBusinessRoutes(app: Express) {
   app.get("/api/prices", async (_req, res) => {
     const db = await getDb();
     if (!db) {
-      res.json({
-        prices: [
-          { seriesId: "nova", seriesName: "Nova", basePrice: 485, adhesiveSurcharge: 65 },
-          { seriesId: "neo-fashion", seriesName: "Neo Fashion", basePrice: 545, adhesiveSurcharge: 65 },
-          { seriesId: "nano-clean", seriesName: "Nano Clean", basePrice: 545, adhesiveSurcharge: 65 },
-          { seriesId: "nano-insulation", seriesName: "Nano Insulation", basePrice: 645, adhesiveSurcharge: 65 },
-          { seriesId: "nano-pro", seriesName: "Nano Pro", basePrice: 845, adhesiveSurcharge: 65 },
-          { seriesId: "honeycomb", seriesName: "Honeycomb", basePrice: 1000, adhesiveSurcharge: 65 },
-        ],
-        demoMode: true,
-      });
+      res.json({ prices: [
+        { seriesId: "nova", seriesName: "Nova", basePrice: 485, adhesiveSurcharge: 65 },
+        { seriesId: "neo-fashion", seriesName: "Neo Fashion", basePrice: 545, adhesiveSurcharge: 65 },
+        { seriesId: "nano-clean", seriesName: "Nano Clean", basePrice: 545, adhesiveSurcharge: 65 },
+        { seriesId: "nano-insulation", seriesName: "Nano Insulation", basePrice: 645, adhesiveSurcharge: 65 },
+        { seriesId: "nano-pro", seriesName: "Nano Pro", basePrice: 845, adhesiveSurcharge: 65 },
+        { seriesId: "honeycomb", seriesName: "Honeycomb", basePrice: 1000, adhesiveSurcharge: 65 },
+      ], demoMode: true });
       return;
     }
     const [rows] = await db.execute(sql`SELECT seriesId, seriesName, basePrice, adhesiveSurcharge, updatedAt FROM priceSettings ORDER BY id`);
