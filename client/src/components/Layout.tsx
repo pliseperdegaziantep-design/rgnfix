@@ -3,26 +3,7 @@ import { startLogin } from "@/const";
 import { useTheme } from "@/contexts/ThemeContext";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import {
-  Menu,
-  X,
-  Sun,
-  Moon,
-  User,
-  LogOut,
-  Ruler,
-  Calculator,
-  Palette,
-  Bot,
-  Layers,
-  Wrench,
-  ShoppingCart,
-  LayoutDashboard,
-  Settings,
-  Grid2X2,
-  Search,
-  WalletCards,
-} from "lucide-react";
+import { Menu, X, Sun, Moon, User, LogOut, Ruler, Calculator, Palette, Bot, Layers, Wrench, ShoppingCart, LayoutDashboard, Settings, Grid2X2, Search, WalletCards, Truck, ShieldCheck, CreditCard } from "lucide-react";
 import { Link, useLocation } from "wouter";
 import { useEffect, useState } from "react";
 import BrandLogo from "@/components/BrandLogo";
@@ -39,6 +20,14 @@ const navItems = [
   { href: "/siparis-sorgula", label: "Sipariş Sorgula", icon: Search },
 ];
 
+const SEO: Record<string, { title: string; description: string }> = {
+  "/": { title: "RGNFIX | Cam Balkon Plise Perde ve Akıllı Online Sipariş", description: "Cam balkon, PVC ve alüminyum doğramalar için ölçüye özel plise perde. Anlık fiyat, online sipariş ve 3000 TL üzeri ücretsiz kargo." },
+  "/siparis": { title: "Online Plise Perde Siparişi | RGNFIX", description: "Ölçünüzü girin, kumaş ve montaj tipini seçin, plise perde siparişinizi online oluşturun. Türkiye geneli gönderim." },
+  "/fiyat-hesapla": { title: "Plise Perde Fiyat Hesaplama 2026 | RGNFIX", description: "Nova, Neo Fashion, Nano Clean, Nano Insulation ve Nano Pro fiyatlarını ölçünüze göre anında hesaplayın." },
+  "/sineklik": { title: "Akordiyon Sineklik Fiyatları | Kapı ve Pencere Sinekliği", description: "Kapı ve pencere için ölçüye özel akordiyon sineklik. Fiber tül, kolay kullanım ve Türkiye geneli sipariş desteği." },
+  "/renk-danismani": { title: "Plise Perde Renk ve Varyant Önerici | RGNFIX", description: "Duvar, zemin ve mobilya renginize uygun plise perde serisini ve VR varyantını bulun." },
+};
+
 export default function Layout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
@@ -50,150 +39,37 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-    document.documentElement.scrollTop = 0;
-    document.body.scrollTop = 0;
+    const seo = SEO[location] || SEO["/"];
+    document.title = seo.title;
+    let meta = document.querySelector('meta[name="description"]');
+    if (!meta) { meta = document.createElement("meta"); meta.setAttribute("name", "description"); document.head.appendChild(meta); }
+    meta.setAttribute("content", seo.description);
   }, [location]);
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
-      <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/80 backdrop-blur-xl">
+      <div className="bg-primary text-primary-foreground">
+        <div className="container flex flex-wrap items-center justify-center gap-x-5 gap-y-1 py-2 text-center text-xs sm:text-sm">
+          <span className="inline-flex items-center gap-1.5 font-bold"><Truck className="h-4 w-4" /> 3.000 TL ve üzeri ÜCRETSİZ KARGO</span>
+          <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-4 w-4" /> 2 yıl garanti</span>
+          <span className="inline-flex items-center gap-1.5"><CreditCard className="h-4 w-4" /> Kapıda ödeme</span>
+          <Link href="/fiyat-hesapla"><span className="cursor-pointer rounded-full bg-white/15 px-3 py-1 font-semibold hover:bg-white/25">Anlık fiyat al →</span></Link>
+        </div>
+      </div>
+      <header className="sticky top-0 z-50 w-full border-b border-border/50 bg-background/90 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
-          <Link href="/" className="group h-11 transition-transform duration-200 hover:scale-[1.02] active:scale-[0.98]">
-            <BrandLogo className="h-11" />
-          </Link>
-
-          <nav className="hidden lg:flex items-center gap-1">
-            {navItems.slice(0, 6).map(item => (
-              <Link key={item.href} href={item.href}>
-                <span className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors duration-150 cursor-pointer ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-                  {item.label}
-                </span>
-              </Link>
-            ))}
-          </nav>
-
+          <Link href="/" className="group h-11 transition-transform duration-200 hover:scale-[1.02]"><BrandLogo className="h-11" /></Link>
+          <nav className="hidden lg:flex items-center gap-1">{navItems.slice(0, 6).map(item => <Link key={item.href} href={item.href}><span className={`px-3 py-2 rounded-lg text-sm font-medium cursor-pointer ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>{item.label}</span></Link>)}</nav>
           <div className="flex items-center gap-2">
-            <div className="hidden xl:flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1.5 text-[10px] font-semibold text-primary">
-              <span className="h-1.5 w-1.5 rounded-full bg-secondary" />
-              DİJİTAL PLATFORM
-            </div>
-            <Button variant="ghost" size="icon" onClick={toggleTheme} className="rounded-lg" aria-label="Tema değiştir">
-              {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </Button>
-
-            {isAuthenticated ? (
-              <div className="hidden sm:flex items-center gap-2">
-                <Link href={accountHref}>
-                  <Button variant="ghost" size="sm" className="rounded-lg gap-2">
-                    <AccountIcon className="h-4 w-4" />
-                    <span className="max-w-28 truncate">{accountLabel}</span>
-                  </Button>
-                </Link>
-                {user?.role === "admin" && (
-                  <Link href="/yonetici/fiyatlar">
-                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Fiyat yönetimi"><WalletCards className="h-4 w-4" /></Button>
-                  </Link>
-                )}
-                {user?.role === "user" && (
-                  <Link href="/hesap-ayarlari">
-                    <Button variant="ghost" size="icon" className="rounded-lg" aria-label="Hesap ayarları"><Settings className="h-4 w-4" /></Button>
-                  </Link>
-                )}
-                <Button variant="ghost" size="icon" onClick={() => logout()} className="rounded-lg" aria-label="Çıkış yap"><LogOut className="h-4 w-4" /></Button>
-              </div>
-            ) : (
-              <Button variant="default" size="sm" onClick={() => startLogin()} className="hidden sm:flex rounded-lg">Giriş Yap</Button>
-            )}
-
-            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden rounded-lg" aria-label="Menüyü aç"><Menu className="h-5 w-5" /></Button>
-              </SheetTrigger>
-              <SheetContent side="right" className="w-80 p-0">
-                <div className="flex flex-col h-full">
-                  <div className="flex items-center justify-between p-4 border-b">
-                    <BrandLogo className="h-10 max-w-[220px]" />
-                    <Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)} aria-label="Menüyü kapat"><X className="h-4 w-4" /></Button>
-                  </div>
-                  <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-                    {navItems.map(item => {
-                      const Icon = item.icon;
-                      return (
-                        <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}>
-                          <span className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:text-foreground hover:bg-accent"}`}>
-                            <Icon className="h-4 w-4" />{item.label}
-                          </span>
-                        </Link>
-                      );
-                    })}
-                  </nav>
-                  <div className="p-4 border-t space-y-2">
-                    {isAuthenticated ? (
-                      <>
-                        <Link href={accountHref} onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><AccountIcon className="h-4 w-4" />{accountLabel}</Button></Link>
-                        {user?.role === "admin" && <Link href="/yonetici/fiyatlar" onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><WalletCards className="h-4 w-4" />Fiyat Yönetimi</Button></Link>}
-                        {user?.role === "user" && <Link href="/hesap-ayarlari" onClick={() => setMobileOpen(false)}><Button variant="outline" className="w-full justify-start gap-2"><Settings className="h-4 w-4" />Hesap Ayarları</Button></Link>}
-                        <Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}><LogOut className="h-4 w-4" />Çıkış Yap</Button>
-                      </>
-                    ) : (
-                      <Button className="w-full" onClick={() => startLogin()}>Giriş Yap / Kayıt Ol</Button>
-                    )}
-                  </div>
-                </div>
-              </SheetContent>
-            </Sheet>
+            <div className="hidden xl:flex items-center gap-2 rounded-full border border-secondary/25 bg-secondary/10 px-3 py-1.5 text-[10px] font-semibold text-primary"><span className="h-1.5 w-1.5 rounded-full bg-secondary" />DİJİTAL PLATFORM</div>
+            <Button variant="ghost" size="icon" onClick={toggleTheme} aria-label="Tema değiştir">{theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}</Button>
+            {isAuthenticated ? <div className="hidden sm:flex items-center gap-2"><Link href={accountHref}><Button variant="ghost" size="sm" className="gap-2"><AccountIcon className="h-4 w-4" />{accountLabel}</Button></Link>{user?.role === "admin" && <Link href="/yonetici/fiyatlar"><Button variant="ghost" size="icon"><WalletCards className="h-4 w-4" /></Button></Link>}{user?.role === "user" && <Link href="/hesap-ayarlari"><Button variant="ghost" size="icon"><Settings className="h-4 w-4" /></Button></Link>}<Button variant="ghost" size="icon" onClick={() => logout()}><LogOut className="h-4 w-4" /></Button></div> : <Button size="sm" onClick={() => startLogin()} className="hidden sm:flex">Giriş Yap</Button>}
+            <Sheet open={mobileOpen} onOpenChange={setMobileOpen}><SheetTrigger asChild><Button variant="ghost" size="icon" className="lg:hidden"><Menu className="h-5 w-5" /></Button></SheetTrigger><SheetContent side="right" className="w-80 p-0"><div className="flex h-full flex-col"><div className="flex items-center justify-between border-b p-4"><BrandLogo className="h-10" /><Button variant="ghost" size="icon" onClick={() => setMobileOpen(false)}><X className="h-4 w-4" /></Button></div><nav className="flex-1 space-y-1 overflow-y-auto p-4">{navItems.map(item => { const Icon = item.icon; return <Link key={item.href} href={item.href} onClick={() => setMobileOpen(false)}><span className={`flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium ${location === item.href ? "bg-primary/10 text-primary" : "text-muted-foreground hover:bg-accent"}`}><Icon className="h-4 w-4" />{item.label}</span></Link>; })}</nav><div className="space-y-2 border-t p-4">{isAuthenticated ? <><Link href={accountHref}><Button variant="outline" className="w-full justify-start gap-2"><AccountIcon className="h-4 w-4" />{accountLabel}</Button></Link>{user?.role === "admin" && <Link href="/yonetici/fiyatlar"><Button variant="outline" className="w-full justify-start gap-2"><WalletCards className="h-4 w-4" />Fiyat Yönetimi</Button></Link>}<Button variant="ghost" className="w-full justify-start gap-2" onClick={() => logout()}><LogOut className="h-4 w-4" />Çıkış Yap</Button></> : <Button className="w-full" onClick={() => startLogin()}>Giriş Yap / Kayıt Ol</Button>}</div></div></SheetContent></Sheet>
           </div>
         </div>
       </header>
-
       <main className="flex-1">{children}</main>
-
-      <footer className="border-t border-border/50 bg-muted/30">
-        <div className="container py-12">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5">
-            <div className="space-y-3">
-              <div className="flex items-center gap-2"><BrandLogo className="h-12" /></div>
-              <p className="text-sm text-muted-foreground leading-relaxed">Akıllı ölçü ve demonte ürün platformu. Doğru seçimden kolay kuruluma kadar güvenilir dijital deneyim.</p>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm">Hizmetler</h4>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <Link href="/ai-danismani"><span className="block hover:text-foreground transition-colors cursor-pointer">AI Danışman</span></Link>
-                <Link href="/olcu-asistani"><span className="block hover:text-foreground transition-colors cursor-pointer">Ölçü Asistanı</span></Link>
-                <Link href="/fiyat-hesapla"><span className="block hover:text-foreground transition-colors cursor-pointer">Fiyat Hesaplama</span></Link>
-                <Link href="/siparis"><span className="block hover:text-foreground transition-colors cursor-pointer">Online Sipariş</span></Link>
-                <Link href="/siparis-sorgula"><span className="block hover:text-foreground transition-colors cursor-pointer">Sipariş Sorgulama</span></Link>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm">Ürünler</h4>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <Link href="/kumas-karsilastirma"><span className="block hover:text-foreground transition-colors cursor-pointer">Plise Perde</span></Link>
-                <Link href="/sineklik"><span className="block hover:text-foreground transition-colors cursor-pointer">Sineklik</span></Link>
-                <Link href="/montaj-rehberi"><span className="block hover:text-foreground transition-colors cursor-pointer">Montaj Rehberi</span></Link>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm">Yasal ve Destek</h4>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <Link href="/gizlilik-politikasi"><span className="block hover:text-foreground transition-colors cursor-pointer">Gizlilik Politikası</span></Link>
-                <Link href="/kullanim-kosullari"><span className="block hover:text-foreground transition-colors cursor-pointer">Kullanım Koşulları</span></Link>
-                <Link href="/kvkk-aydinlatma"><span className="block hover:text-foreground transition-colors cursor-pointer">KVKK Aydınlatma</span></Link>
-                <Link href="/destek"><span className="block hover:text-foreground transition-colors cursor-pointer">Destek Merkezi</span></Link>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <h4 className="font-semibold text-sm">İletişim</h4>
-              <div className="space-y-2 text-sm text-muted-foreground">
-                <p>Dijital destek merkezi</p>
-                <a href="tel:+905300288903" className="block hover:text-foreground transition-colors">+90 530 028 89 03</a>
-                <p>Türkiye geneli hizmet</p>
-              </div>
-            </div>
-          </div>
-          <div className="mt-8 pt-8 border-t border-border/50 text-center text-sm text-muted-foreground"><p>&copy; {new Date().getFullYear()} RGNFIX by Plise Perde Gaziantep. Tüm hakları saklıdır.</p></div>
-        </div>
-      </footer>
+      <footer className="border-t border-border/50 bg-muted/30"><div className="container py-12"><div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5"><div className="space-y-3"><BrandLogo className="h-12" /><p className="text-sm text-muted-foreground">Akıllı ölçü ve demonte ürün platformu.</p></div><div><h4 className="mb-3 font-semibold text-sm">Hizmetler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/ai-danismani">AI Danışman</Link><br/><Link href="/olcu-asistani">Ölçü Asistanı</Link><br/><Link href="/fiyat-hesapla">Fiyat Hesaplama</Link><br/><Link href="/siparis-sorgula">Sipariş Sorgulama</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Ürünler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/kumas-karsilastirma">Plise Perde</Link><br/><Link href="/sineklik">Sineklik</Link><br/><Link href="/montaj-rehberi">Montaj Rehberi</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Yasal</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/gizlilik-politikasi">Gizlilik Politikası</Link><br/><Link href="/kullanim-kosullari">Kullanım Koşulları</Link><br/><Link href="/kvkk-aydinlatma">KVKK</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">İletişim</h4><div className="space-y-2 text-sm text-muted-foreground"><p>Dijital destek merkezi</p><a href="tel:+905300288903">+90 530 028 89 03</a><p>Türkiye geneli hizmet</p></div></div></div><div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">© {new Date().getFullYear()} RGNFIX by Plise Perde Gaziantep.</div></div></footer>
     </div>
   );
 }
