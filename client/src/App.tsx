@@ -12,8 +12,10 @@ const Home = lazy(() => import("./pages/Home"));
 const Login = lazy(() => import("./pages/Login"));
 const AdminPanel = lazy(() => import("./pages/AdminPanel"));
 const AdminPrices = lazy(() => import("./pages/AdminPrices"));
+const AdminOrderEdit = lazy(() => import("./pages/AdminOrderEdit"));
 const AIAdvisor = lazy(() => import("./pages/AIAdvisor"));
 const MeasurementAssistant = lazy(() => import("./pages/MeasurementAssistant"));
+const MeasurementVisualGuide = lazy(() => import("./pages/MeasurementVisualGuide"));
 const PhotoSupport = lazy(() => import("./pages/PhotoSupport"));
 const PriceCalculator = lazy(() => import("./pages/PriceCalculator"));
 const FabricComparison = lazy(() => import("./pages/FabricComparison"));
@@ -37,53 +39,41 @@ const VerifyEmail = lazy(() => import("./pages/AuthRecovery").then(module => ({ 
 function Router() {
   return (
     <Switch>
-      <Route path={"/"} component={Home} />
-      <Route path={"/giris"} component={Login} />
-      <Route path={"/sifremi-unuttum"} component={ForgotPassword} />
-      <Route path={"/sifre-yenile"} component={ResetPassword} />
-      <Route path={"/eposta-dogrula"} component={VerifyEmail} />
-      <Route path={"/yonetici"} component={AdminPanel} />
-      <Route path={"/yonetici/fiyatlar"} component={AdminPrices} />
-      <Route path={"/ai-danismani"} component={AIAdvisor} />
-      <Route path={"/olcu-asistani"} component={MeasurementAssistant} />
-      <Route path={"/olcu-fotografi"} component={PhotoSupport} />
-      <Route path={"/fiyat-hesapla"} component={PriceCalculator} />
-      <Route path={"/kumas-karsilastirma"} component={FabricComparison} />
-      <Route path={"/sineklik"} component={InsectScreen} />
-      <Route path={"/renk-danismani"} component={ColorAdvisor} />
-      <Route path={"/montaj-rehberi"} component={MountingGuide} />
-      <Route path={"/siparis"} component={OrderPage} />
-      <Route path={"/siparis-sorgula"} component={OrderTracking} />
-      <Route path={"/hesabim"} component={CustomerPanel} />
-      <Route path={"/hesap-ayarlari"} component={AccountSettings} />
-      <Route path={"/bayi-haritasi"} component={DealerMap} />
-      <Route path={"/gizlilik-politikasi"} component={PrivacyPolicy} />
-      <Route path={"/kullanim-kosullari"} component={TermsOfUse} />
-      <Route path={"/kvkk-aydinlatma"} component={KvkkNotice} />
-      <Route path={"/destek"} component={SupportPage} />
-      <Route path={"/hesap-silme"} component={DeleteAccountPage} />
-      <Route path={"/404"} component={NotFound} />
+      <Route path="/" component={Home} />
+      <Route path="/giris" component={Login} />
+      <Route path="/sifremi-unuttum" component={ForgotPassword} />
+      <Route path="/sifre-yenile" component={ResetPassword} />
+      <Route path="/eposta-dogrula" component={VerifyEmail} />
+      <Route path="/yonetici/siparis/:id/duzenle" component={AdminOrderEdit} />
+      <Route path="/yonetici/fiyatlar" component={AdminPrices} />
+      <Route path="/yonetici" component={AdminPanel} />
+      <Route path="/ai-danismani" component={AIAdvisor} />
+      <Route path="/olcu-asistani" component={MeasurementAssistant} />
+      <Route path="/gorsel-olcu-rehberi" component={MeasurementVisualGuide} />
+      <Route path="/olcu-fotografi" component={PhotoSupport} />
+      <Route path="/fiyat-hesapla" component={PriceCalculator} />
+      <Route path="/kumas-karsilastirma" component={FabricComparison} />
+      <Route path="/sineklik" component={InsectScreen} />
+      <Route path="/renk-danismani" component={ColorAdvisor} />
+      <Route path="/montaj-rehberi" component={MountingGuide} />
+      <Route path="/siparis" component={OrderPage} />
+      <Route path="/siparis-sorgula" component={OrderTracking} />
+      <Route path="/hesabim" component={CustomerPanel} />
+      <Route path="/hesap-ayarlari" component={AccountSettings} />
+      <Route path="/bayi-haritasi" component={DealerMap} />
+      <Route path="/gizlilik-politikasi" component={PrivacyPolicy} />
+      <Route path="/kullanim-kosullari" component={TermsOfUse} />
+      <Route path="/kvkk-aydinlatma" component={KvkkNotice} />
+      <Route path="/destek" component={SupportPage} />
+      <Route path="/hesap-silme" component={DeleteAccountPage} />
+      <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+export default function App() {
   return (
-    <ErrorBoundary>
-      <ThemeProvider defaultTheme="light" switchable>
-        <TooltipProvider>
-          <Toaster />
-          <OnlineStatus />
-          <Layout>
-            <Suspense fallback={<div className="min-h-[50vh] grid place-items-center text-muted-foreground">Sayfa yükleniyor…</div>}>
-              <Router />
-            </Suspense>
-          </Layout>
-        </TooltipProvider>
-      </ThemeProvider>
-    </ErrorBoundary>
+    <ErrorBoundary><ThemeProvider defaultTheme="light" switchable><TooltipProvider><Toaster /><OnlineStatus /><Layout><Suspense fallback={<div className="min-h-[50vh] grid place-items-center text-muted-foreground">Sayfa yükleniyor…</div>}><Router /></Suspense></Layout></TooltipProvider></ThemeProvider></ErrorBoundary>
   );
 }
-
-export default App;
