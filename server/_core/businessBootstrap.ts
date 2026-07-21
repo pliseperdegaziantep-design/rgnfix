@@ -34,17 +34,34 @@ export async function ensureBusinessSchema() {
       ON DUPLICATE KEY UPDATE seriesName = VALUES(seriesName)
     `));
 
+    await db.execute(sql.raw(`
+      CREATE TABLE IF NOT EXISTS orderSequence (
+        id tinyint NOT NULL,
+        nextNumber int NOT NULL,
+        PRIMARY KEY (id)
+      ) ENGINE=InnoDB
+    `));
+
+    await db.execute(sql.raw(`
+      INSERT INTO orderSequence (id, nextNumber)
+      VALUES (1, GREATEST(10000, COALESCE((SELECT MAX(CAST(orderNumber AS UNSIGNED)) + 1 FROM orders), 10000)))
+      ON DUPLICATE KEY UPDATE nextNumber = GREATEST(
+        nextNumber,
+        COALESCE((SELECT MAX(CAST(orderNumber AS UNSIGNED)) + 1 FROM orders), 10000)
+      )
+    `));
+
     await db.execute(sql.raw("DROP TRIGGER IF EXISTS rgnfix_orders_before_insert"));
     await db.execute(sql.raw(`
       CREATE TRIGGER rgnfix_orders_before_insert
       BEFORE INSERT ON orders
       FOR EACH ROW
-      SET NEW.orderNumber = CAST(
-        GREATEST(
-          10000,
-          COALESCE((SELECT MAX(CAST(orderNumber AS UNSIGNED)) + 1 FROM orders), 10000)
-        ) AS CHAR
-      )
+      BEGIN
+        UPDATE orderSequence
+        SET nextNumber = LAST_INSERT_ID(nextNumber + 1)
+        WHERE id = 1;
+        SET NEW.orderNumber = CAST(LAST_INSERT_ID() - 1 AS CHAR);
+      END
     `));
 
     console.log("[BusinessSchema] Sequential orders and price settings ready");
