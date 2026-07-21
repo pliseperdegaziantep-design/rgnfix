@@ -115,6 +115,20 @@ export const measurements = mysqlTable("measurements", {
 export type Measurement = typeof measurements.$inferSelect;
 export type InsertMeasurement = typeof measurements.$inferInsert;
 
+export const appDataRecords = mysqlTable("appDataRecords", {
+  id: int("id").autoincrement().primaryKey(),
+  userId: int("userId"),
+  sessionId: varchar("sessionId", { length: 64 }).notNull(),
+  recordType: varchar("recordType", { length: 40 }).notNull(),
+  payload: json("payload").notNull(),
+  ipHash: varchar("ipHash", { length: 64 }),
+  userAgent: varchar("userAgent", { length: 500 }),
+  createdAt: timestamp("createdAt").defaultNow().notNull(),
+});
+
+export type AppDataRecord = typeof appDataRecords.$inferSelect;
+export type InsertAppDataRecord = typeof appDataRecords.$inferInsert;
+
 export const pushTokens = mysqlTable("pushTokens", {
   id: int("id").autoincrement().primaryKey(),
   userId: int("userId").notNull(),
