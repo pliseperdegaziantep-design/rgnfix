@@ -52,19 +52,7 @@ export async function ensureBusinessSchema() {
     `));
 
     await db.execute(sql.raw("DROP TRIGGER IF EXISTS rgnfix_orders_before_insert"));
-    await db.execute(sql.raw(`
-      CREATE TRIGGER rgnfix_orders_before_insert
-      BEFORE INSERT ON orders
-      FOR EACH ROW
-      BEGIN
-        UPDATE orderSequence
-        SET nextNumber = LAST_INSERT_ID(nextNumber + 1)
-        WHERE id = 1;
-        SET NEW.orderNumber = CAST(LAST_INSERT_ID() - 1 AS CHAR);
-      END
-    `));
-
-    console.log("[BusinessSchema] Sequential orders and price settings ready");
+    console.log("[BusinessSchema] Consecutive order sequence and price settings ready");
   } catch (error) {
     console.error("[BusinessSchema] Bootstrap failed:", error);
   }
