@@ -20,6 +20,7 @@ const InsectScreen = lazy(() => import("./pages/InsectScreen"));
 const ColorAdvisor = lazy(() => import("./pages/ColorAdvisor"));
 const MountingGuide = lazy(() => import("./pages/MountingGuide"));
 const OrderPage = lazy(() => import("./pages/OrderPage"));
+const OrderTracking = lazy(() => import("./pages/OrderTracking"));
 const CustomerPanel = lazy(() => import("./pages/CustomerPanel"));
 const AccountSettings = lazy(() => import("./pages/AccountSettings"));
 const DealerMap = lazy(() => import("./pages/DealerMap"));
@@ -50,6 +51,7 @@ function Router() {
       <Route path={"/renk-danismani"} component={ColorAdvisor} />
       <Route path={"/montaj-rehberi"} component={MountingGuide} />
       <Route path={"/siparis"} component={OrderPage} />
+      <Route path={"/siparis-sorgula"} component={OrderTracking} />
       <Route path={"/hesabim"} component={CustomerPanel} />
       <Route path={"/hesap-ayarlari"} component={AccountSettings} />
       <Route path={"/bayi-haritasi"} component={DealerMap} />
