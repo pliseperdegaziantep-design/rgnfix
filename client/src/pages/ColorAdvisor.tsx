@@ -23,20 +23,29 @@ const MAIN_COLORS = [
   { id: "ahsap", name: "Ahşap Tonu", hex: "#8B5A2B", family: "natural" },
 ] as const;
 
-const FABRIC_SERIES = [
-  { id: "nova", name: "Nova", codes: "VR01–VR10", colors: ["Beyaz", "Krem", "Bej", "Açık Gri"] },
-  { id: "neo-fashion", name: "Neo Fashion", codes: "VR04, VR05, VR06", colors: ["Krem", "Bej", "Gri", "Antrasit"] },
-  { id: "nano-clean", name: "Nano Clean", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Krem", "Açık Gri", "Gri"] },
-  { id: "nano-insulation", name: "Nano Insulation", codes: "Karteladaki mevcut varyantlar", colors: ["Krem", "Bej", "Gri", "Antrasit"] },
-  { id: "nano-pro", name: "Nano Pro", codes: "VR01, VR03, VR04", colors: ["Beyaz", "Bej", "Antrasit", "Siyah"] },
-  { id: "honeycomb", name: "Honeycomb", codes: "VR01, VR02, VR03, VR05", colors: ["Beyaz", "Krem", "Gri", "Antrasit"] },
+const SERIES_VARIANTS = [
+  { id: "nova", name: "Nova", variants: [
+    { code: "VR 01", color: "Beyaz" }, { code: "VR 02", color: "Krem" }, { code: "VR 03", color: "Bej" },
+    { code: "VR 04", color: "Açık Gri" }, { code: "VR 06", color: "Gri" }, { code: "VR 07", color: "Antrasit" },
+  ] },
+  { id: "neo-fashion", name: "Neo Fashion", variants: [
+    { code: "VR 02", color: "Krem" }, { code: "VR 03", color: "Gri" }, { code: "VR 04", color: "Antrasit" },
+    { code: "VR 06", color: "Ekru" }, { code: "VR 07", color: "Açık Gri" },
+  ] },
+  { id: "nano-clean", name: "Nano Clean", variants: [
+    { code: "VR 01", color: "Beyaz" }, { code: "VR 02", color: "Krem" }, { code: "VR 03", color: "Gri" }, { code: "VR 04", color: "Antrasit" },
+  ] },
+  { id: "nano-insulation", name: "Nano Insulation", variants: [
+    { code: "VR 01", color: "Krem" }, { code: "VR 02", color: "Açık Gri" }, { code: "VR 03", color: "Antrasit" },
+  ] },
+  { id: "nano-pro", name: "Nano Pro", variants: [
+    { code: "VR 01", color: "Beyaz" }, { code: "VR 02", color: "Krem" }, { code: "VR 03", color: "Gri" }, { code: "VR 04", color: "Antrasit" },
+  ] },
 ] as const;
 
 const PROFILE_COLORS = ["Beyaz", "Krem", "Gümüş Gri", "Antrasit"] as const;
 
-function getColor(id: string) {
-  return MAIN_COLORS.find(color => color.id === id);
-}
+function getColor(id: string) { return MAIN_COLORS.find(color => color.id === id); }
 
 function determinePalette(wallId: string, floorId: string, furnitureId: string) {
   const selected = [getColor(wallId), getColor(floorId), getColor(furnitureId)].filter(Boolean);
@@ -44,32 +53,14 @@ function determinePalette(wallId: string, floorId: string, furnitureId: string) 
   const darkCount = families.filter(family => family.includes("dark") || family === "dark").length;
   const warmCount = families.filter(family => family.includes("warm") || family === "natural").length;
   const coolCount = families.filter(family => family.includes("cool")).length;
-
-  if (darkCount >= 2) return { colors: ["Beyaz", "Krem", "Açık Gri"], profile: "Antrasit", series: ["neo-fashion", "nano-pro"] };
-  if (warmCount >= 2) return { colors: ["Krem", "Bej", "Antrasit"], profile: "Krem", series: ["nova", "neo-fashion", "nano-insulation"] };
-  if (coolCount >= 2) return { colors: ["Açık Gri", "Gri", "Beyaz"], profile: "Gümüş Gri", series: ["nova", "nano-clean", "nano-pro"] };
-  return { colors: ["Beyaz", "Krem", "Bej"], profile: "Beyaz", series: ["nova", "neo-fashion", "nano-clean"] };
+  if (darkCount >= 2) return { colors: ["Beyaz", "Krem", "Açık Gri"], profile: "Antrasit" };
+  if (warmCount >= 2) return { colors: ["Krem", "Ekru", "Bej"], profile: "Krem" };
+  if (coolCount >= 2) return { colors: ["Açık Gri", "Gri", "Beyaz"], profile: "Gümüş Gri" };
+  return { colors: ["Beyaz", "Krem", "Açık Gri"], profile: "Beyaz" };
 }
 
 function ColorSelect({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return (
-    <div className="space-y-2">
-      <Label>{label} *</Label>
-      <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="rounded-xl"><SelectValue placeholder={placeholder} /></SelectTrigger>
-        <SelectContent className="max-h-72">
-          {MAIN_COLORS.map(color => (
-            <SelectItem key={color.id} value={color.id}>
-              <div className="flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full border border-border/50" style={{ backgroundColor: color.hex }} />
-                {color.name}
-              </div>
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
-  );
+  return <div className="space-y-2"><Label>{label} *</Label><Select value={value} onValueChange={onChange}><SelectTrigger className="rounded-xl"><SelectValue placeholder={placeholder} /></SelectTrigger><SelectContent className="max-h-72">{MAIN_COLORS.map(color => <SelectItem key={color.id} value={color.id}><div className="flex items-center gap-2"><span className="w-4 h-4 rounded-full border" style={{ backgroundColor: color.hex }} />{color.name}</div></SelectItem>)}</SelectContent></Select></div>;
 }
 
 export default function ColorAdvisor() {
@@ -77,88 +68,23 @@ export default function ColorAdvisor() {
   const [floorColor, setFloorColor] = useState("");
   const [furnitureColor, setFurnitureColor] = useState("");
   const [showResult, setShowResult] = useState(false);
-
   const recommendation = useMemo(() => {
-    const result = determinePalette(wallColor, floorColor, furnitureColor);
-    const series = result.series
-      .map(id => FABRIC_SERIES.find(item => item.id === id))
-      .filter((item): item is typeof FABRIC_SERIES[number] => Boolean(item));
-    return { ...result, series };
+    const palette = determinePalette(wallColor, floorColor, furnitureColor);
+    const series = SERIES_VARIANTS.map(item => ({
+      ...item,
+      matches: item.variants.filter(variant => palette.colors.includes(variant.color)),
+    })).filter(item => item.matches.length > 0);
+    return { ...palette, series };
   }, [wallColor, floorColor, furnitureColor]);
-
   const ready = Boolean(wallColor && floorColor && furnitureColor);
+  const resetResult = (setter: (value: string) => void) => (value: string) => { setter(value); setShowResult(false); };
 
-  const resetResult = (setter: (value: string) => void) => (value: string) => {
-    setter(value);
-    setShowResult(false);
-  };
-
-  return (
-    <div className="container py-8 max-w-5xl">
-      <div className="text-center mb-8">
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4"><Palette className="h-3.5 w-3.5" /> AI Destekli Renk Danışmanı</div>
-        <h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Renk Danışmanı</h1>
-        <p className="text-muted-foreground max-w-xl mx-auto">Duvar, zemin ve mobilya renklerinize göre uygun kumaş serisini belirleyelim.</p>
-      </div>
-
-      <div className="grid lg:grid-cols-2 gap-6">
-        <Card className="border-border/50">
-          <CardHeader><CardTitle className="text-lg">Alan Renkleri</CardTitle></CardHeader>
-          <CardContent className="space-y-5">
-            <ColorSelect label="Duvar Rengi" value={wallColor} onChange={resetResult(setWallColor)} placeholder="Duvar rengini seçin" />
-            <ColorSelect label="Zemin Rengi" value={floorColor} onChange={resetResult(setFloorColor)} placeholder="Zemin rengini seçin" />
-            <ColorSelect label="Mobilya Rengi" value={furnitureColor} onChange={resetResult(setFurnitureColor)} placeholder="Mobilya rengini seçin" />
-
-            <Button type="button" onClick={() => setShowResult(true)} disabled={!ready} className="w-full btn-premium gap-2"><Sparkles className="h-4 w-4" /> En Uygun Rengi Bul</Button>
-
-            <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800">
-              <Info className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-              <p className="text-xs text-amber-700 dark:text-amber-300">Öneriler yalnızca kendi kumaş serilerimizden ve mevcut profil renklerimizden yapılır.</p>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50 h-fit">
-          <CardHeader><CardTitle className="text-lg">AI Önerisi</CardTitle></CardHeader>
-          <CardContent>
-            {showResult ? (
-              <div className="space-y-5">
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Önerilen Kumaş Renkleri</h4>
-                  <div className="flex flex-wrap gap-2">{recommendation.colors.map(color => <span key={color} className="px-3 py-2 rounded-xl bg-muted text-sm font-medium">{color}</span>)}</div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Önerilen Kumaş Serileri</h4>
-                  <div className="space-y-2">
-                    {recommendation.series.map(series => (
-                      <div key={series.id} className="px-4 py-3 rounded-xl bg-primary/5 border border-primary/20">
-                        <p className="font-semibold">{series.name}</p>
-                        <p className="text-sm text-muted-foreground">Kodlar: {series.codes}</p>
-                        {series.id === "nano-pro" && <p className="text-xs mt-1">VR03 ve VR04 karartma kumaştır.</p>}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="text-sm font-medium text-muted-foreground mb-2">Önerilen Profil Rengi</h4>
-                  <span className="inline-block px-4 py-2 rounded-xl bg-muted text-sm font-medium">{recommendation.profile}</span>
-                </div>
-
-                <p className="text-sm text-muted-foreground">Renkler alanınızdaki ana tonların uyumuna göre belirlendi.</p>
-              </div>
-            ) : (
-              <div className="text-center py-12 text-muted-foreground"><Palette className="h-12 w-12 mx-auto mb-3 opacity-30" /><p className="text-sm">Üç ana rengi seçerek öneri alın.</p></div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="mt-8 border-border/50">
-        <CardHeader><CardTitle className="text-lg">Mevcut Profil Renkleri</CardTitle></CardHeader>
-        <CardContent><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{PROFILE_COLORS.map(color => <div key={color} className="p-3 rounded-xl border border-border/50 text-center text-sm font-medium">{color}</div>)}</div></CardContent>
-      </Card>
+  return <div className="container py-8 max-w-5xl">
+    <div className="text-center mb-8"><div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 text-primary text-sm font-medium mb-4"><Palette className="h-3.5 w-3.5" /> Akıllı Renk Danışmanı</div><h1 className="text-3xl sm:text-4xl font-serif font-bold mb-3">Plise Perde Renk Önerici</h1><p className="text-muted-foreground max-w-xl mx-auto">Duvar, zemin ve mobilya renklerinize gerçekten uyan kumaş serilerini ve stoktaki varyant kodlarını gösterir.</p></div>
+    <div className="grid lg:grid-cols-2 gap-6">
+      <Card><CardHeader><CardTitle>Alan Renkleri</CardTitle></CardHeader><CardContent className="space-y-5"><ColorSelect label="Duvar Rengi" value={wallColor} onChange={resetResult(setWallColor)} placeholder="Duvar rengini seçin" /><ColorSelect label="Zemin Rengi" value={floorColor} onChange={resetResult(setFloorColor)} placeholder="Zemin rengini seçin" /><ColorSelect label="Mobilya Rengi" value={furnitureColor} onChange={resetResult(setFurnitureColor)} placeholder="Mobilya rengini seçin" /><Button onClick={() => setShowResult(true)} disabled={!ready} className="w-full gap-2"><Sparkles className="h-4 w-4" /> En Uygun Varyantları Bul</Button><div className="flex gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200"><Info className="h-4 w-4 text-amber-600 shrink-0" /><p className="text-xs text-amber-700">Uyumlu varyantı olmayan seri öneriye eklenmez.</p></div></CardContent></Card>
+      <Card><CardHeader><CardTitle>Önerilen Kumaş ve Varyantlar</CardTitle></CardHeader><CardContent>{showResult ? <div className="space-y-5">{recommendation.series.map(series => <div key={series.id} className="rounded-xl border border-primary/20 bg-primary/5 p-4"><p className="font-semibold">{series.name}</p><div className="mt-2 flex flex-wrap gap-2">{series.matches.map(variant => <span key={variant.code} className="rounded-lg bg-background border px-3 py-2 text-sm font-medium">{variant.code} – {variant.color}</span>)}</div></div>)}<div><p className="text-sm text-muted-foreground">Önerilen profil rengi</p><span className="mt-2 inline-block rounded-xl bg-muted px-4 py-2 font-medium">{recommendation.profile}</span></div></div> : <div className="text-center py-12 text-muted-foreground"><Palette className="h-12 w-12 mx-auto mb-3 opacity-30" /><p>Üç ana rengi seçerek öneri alın.</p></div>}</CardContent></Card>
     </div>
-  );
+    <Card className="mt-8"><CardHeader><CardTitle>Mevcut Profil Renkleri</CardTitle></CardHeader><CardContent><div className="grid grid-cols-2 sm:grid-cols-4 gap-3">{PROFILE_COLORS.map(color => <div key={color} className="p-3 rounded-xl border text-center text-sm font-medium">{color}</div>)}</div></CardContent></Card>
+  </div>;
 }
