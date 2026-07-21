@@ -6,33 +6,10 @@ import { getDb } from "../db";
 import { getLocalAuthUser } from "./localAuth";
 import { sendPushToUser } from "./push";
 
-type OrderStatus =
-  | "pending"
-  | "confirmed"
-  | "production"
-  | "preparing"
-  | "shipping"
-  | "delivered"
-  | "cancelled";
-
-const ORDER_STATUSES = new Set<OrderStatus>([
-  "pending",
-  "confirmed",
-  "production",
-  "preparing",
-  "shipping",
-  "delivered",
-  "cancelled",
-]);
-
+type OrderStatus = "pending" | "confirmed" | "production" | "preparing" | "shipping" | "delivered" | "cancelled";
+const ORDER_STATUSES = new Set<OrderStatus>(["pending", "confirmed", "production", "preparing", "shipping", "delivered", "cancelled"]);
 const STATUS_LABELS: Record<OrderStatus, string> = {
-  pending: "Onay Bekliyor",
-  confirmed: "Onaylandı",
-  production: "Üretimde",
-  preparing: "Hazırlanıyor",
-  shipping: "Kargoda",
-  delivered: "Teslim Edildi",
-  cancelled: "İptal Edildi",
+  pending: "Onay Bekliyor", confirmed: "Onaylandı", production: "Üretimde", preparing: "Hazırlanıyor", shipping: "Kargoda", delivered: "Teslim Edildi", cancelled: "İptal Edildi",
 };
 
 async function requireAdmin(req: Request, res: Response) {
@@ -47,30 +24,33 @@ async function requireAdmin(req: Request, res: Response) {
 export function registerAdminRoutes(app: Express) {
   app.get("/api/admin/orders", async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-
     const db = await getDb();
-    if (!db) {
-      res.json({ orders: demoOrders, demoMode: true });
-      return;
-    }
-
+    if (!db) return void res.json({ orders: demoOrders, demoMode: true });
     const result = await db.select().from(orders).orderBy(desc(orders.createdAt));
     res.json({ orders: result, demoMode: false });
   });
 
+  app.get("/api/admin/orders/:id", async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    const id = Number.parseInt(req.params.id, 10);
+    if (!Number.isInteger(id) || id <= 0) return void res.status(400).json({ error: "Geçersiz sipariş." });
+    const db = await getDb();
+    if (!db) {
+      const order = demoOrders.find(item => Number(item.id) === id);
+      if (!order) return void res.status(404).json({ error: "Sipariş bulunamadı." });
+      return void res.json({ order, demoMode: true });
+    }
+    const result = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
+    if (!result[0]) return void res.status(404).json({ error: "Sipariş bulunamadı." });
+    res.json({ order: result[0], demoMode: false });
+  });
+
   app.patch("/api/admin/orders/:id", async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-
     const id = Number.parseInt(req.params.id, 10);
-    if (!Number.isInteger(id) || id <= 0) {
-      res.status(400).json({ error: "Geçersiz sipariş." });
-      return;
-    }
+    if (!Number.isInteger(id) || id <= 0) return void res.status(400).json({ error: "Geçersiz sipariş." });
 
-    const textFields = [
-      "fabricName", "fabricColor", "profileColor", "mountType", "caseType",
-      "customerName", "customerPhone", "customerAddress", "customerCity", "customerNote",
-    ] as const;
+    const textFields = ["fabricName", "fabricColor", "profileColor", "mountType", "caseType", "customerName", "customerPhone", "customerAddress", "customerCity", "customerNote"] as const;
     const numberFields = ["width", "height", "quantity", "totalPrice"] as const;
     const updateSet: Record<string, unknown> = { updatedAt: new Date() };
 
@@ -80,32 +60,25 @@ export function registerAdminRoutes(app: Express) {
     for (const field of numberFields) {
       if (req.body?.[field] !== undefined) {
         const value = Number(req.body[field]);
-        if (!Number.isFinite(value) || value < 0) {
-          res.status(400).json({ error: `${field} için geçerli bir değer girin.` });
-          return;
-        }
+        if (!Number.isFinite(value) || value < 0) return void res.status(400).json({ error: `${field} için geçerli bir değer girin.` });
         updateSet[field] = field === "quantity" ? Math.max(1, Math.round(value)) : value.toFixed(2);
       }
+    }
+    if (typeof req.body?.status === "string") {
+      if (!ORDER_STATUSES.has(req.body.status as OrderStatus)) return void res.status(400).json({ error: "Geçersiz sipariş durumu." });
+      updateSet.status = req.body.status;
     }
 
     const db = await getDb();
     if (!db) {
       const order = demoOrders.find(item => Number(item.id) === id) as Record<string, unknown> | undefined;
-      if (!order) {
-        res.status(404).json({ error: "Sipariş bulunamadı." });
-        return;
-      }
+      if (!order) return void res.status(404).json({ error: "Sipariş bulunamadı." });
       Object.assign(order, updateSet);
-      res.json({ success: true, order, demoMode: true });
-      return;
+      return void res.json({ success: true, order, demoMode: true });
     }
 
     const existing = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
-    if (!existing[0]) {
-      res.status(404).json({ error: "Sipariş bulunamadı." });
-      return;
-    }
-
+    if (!existing[0]) return void res.status(404).json({ error: "Sipariş bulunamadı." });
     await db.update(orders).set(updateSet).where(eq(orders.id, id));
     const updated = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     res.json({ success: true, order: updated[0], demoMode: false });
@@ -113,48 +86,27 @@ export function registerAdminRoutes(app: Express) {
 
   app.patch("/api/admin/orders/:id/status", async (req, res) => {
     if (!(await requireAdmin(req, res))) return;
-
     const id = Number.parseInt(req.params.id, 10);
     const rawStatus = typeof req.body?.status === "string" ? req.body.status : "";
-
-    if (!Number.isInteger(id) || id <= 0 || !ORDER_STATUSES.has(rawStatus as OrderStatus)) {
-      res.status(400).json({ error: "Geçersiz sipariş veya durum." });
-      return;
-    }
+    if (!Number.isInteger(id) || id <= 0 || !ORDER_STATUSES.has(rawStatus as OrderStatus)) return void res.status(400).json({ error: "Geçersiz sipariş veya durum." });
     const status = rawStatus as OrderStatus;
-
     const db = await getDb();
     if (!db) {
       const order = demoOrders.find(item => Number(item.id) === id);
-      if (!order) {
-        res.status(404).json({ error: "Sipariş bulunamadı." });
-        return;
-      }
+      if (!order) return void res.status(404).json({ error: "Sipariş bulunamadı." });
       (order as { status: OrderStatus; updatedAt: Date }).status = status;
       (order as { status: OrderStatus; updatedAt: Date }).updatedAt = new Date();
-      res.json({ success: true, demoMode: true });
-      return;
+      return void res.json({ success: true, demoMode: true });
     }
-
     const orderRows = await db.select().from(orders).where(eq(orders.id, id)).limit(1);
     const order = orderRows[0];
-    if (!order) {
-      res.status(404).json({ error: "Sipariş bulunamadı." });
-      return;
-    }
-
+    if (!order) return void res.status(404).json({ error: "Sipariş bulunamadı." });
     await db.update(orders).set({ status, updatedAt: new Date() }).where(eq(orders.id, id));
-
     if (order.userId > 0 && order.status !== status) {
       void sendPushToUser(order.userId, "RGNFIX Sipariş Güncellemesi", `#${order.orderNumber} numaralı siparişiniz: ${STATUS_LABELS[status]}`, {
-        type: "order_status",
-        orderId: String(order.id),
-        orderNumber: order.orderNumber,
-        status,
-        deepLink: `/hesabim?order=${order.id}`,
+        type: "order_status", orderId: String(order.id), orderNumber: order.orderNumber, status, deepLink: `/hesabim?order=${order.id}`,
       });
     }
-
     res.json({ success: true, demoMode: false });
   });
 }
