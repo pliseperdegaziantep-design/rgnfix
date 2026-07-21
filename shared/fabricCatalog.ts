@@ -54,7 +54,7 @@ export function getCurrentFabricPrice(seriesId: string, defaultPrice: number): n
 }
 
 export function getMountingSurcharge(mountType: string): number {
-  return mountType === "yapistirma" || mountType === "yapıştırma" ? 65 : 0;
+  return ["yapisma", "yapistirma", "yapıştırma"].includes(mountType) ? 65 : 0;
 }
 
 export function formatFabricVariant(variant: FabricVariant): string {
