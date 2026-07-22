@@ -15,11 +15,58 @@ const LAST_ORDER_KEY = "rgnfix-admin-last-order-id";
 const money = (value:string|number) => new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(Number(value||0));
 const date = (value:string|Date) => new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value));
 const esc = (value:unknown) => String(value??"").replaceAll("&","&amp;").replaceAll("<","&lt;").replaceAll(">","&gt;").replaceAll('"',"&quot;").replaceAll("'","&#039;");
+const titleCase = (value:unknown) => String(value??"").trim().replace(/(^|\s)\S/g, letter => letter.toLocaleUpperCase("tr-TR"));
+const mountName = (value:unknown) => ({ vidali:"Vidalı", kancali:"Kancalı", yapisma:"Yapıştırma", "rgn-pen":"RGN PEN" }[String(value??"")] || titleCase(value));
 
 function printOrder(order:Order){
   const popup=window.open("","_blank","width=620,height=900"); if(!popup) return void toast.error("Yazdırma penceresi engellendi.");
-  const measurementRows = normalizeOrderMeasurements(order).map(item => `<div class="row"><div class="label">${esc(item.label)}</div><div class="value">${esc(item.width)} × ${esc(item.height)} cm · ${esc(item.quantity)} adet</div></div>`).join("");
-  popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Sipariş ${esc(order.orderNumber)}</title><style>@page{size:A5 portrait;margin:9mm}body{font-family:Arial;color:#123;font-size:11px}.sheet{border:2px solid #123;padding:9mm}.head{display:flex;justify-content:space-between;border-bottom:2px solid #123;padding-bottom:8mm}.brand{font-size:26px;font-weight:900}.section{margin-top:7mm}.row{display:flex;border-bottom:1px dotted #ccc;padding:2mm 0}.label{width:35mm;color:#667}.value{font-weight:700}.total{margin-top:8mm;background:#eef7f7;padding:5mm;display:flex;justify-content:space-between;font-size:16px}</style></head><body onload="window.print()"><div class="sheet"><div class="head"><div class="brand">RGNFIX</div><div><b>#${esc(order.orderNumber)}</b><br>${esc(date(order.createdAt))}</div></div><div class="section"><div class="row"><div class="label">Müşteri</div><div class="value">${esc(order.customerName)}</div></div><div class="row"><div class="label">Telefon</div><div class="value">${esc(order.customerPhone)}</div></div><div class="row"><div class="label">Adres</div><div class="value">${esc(order.customerCity)} ${esc(order.customerAddress)}</div></div></div><div class="section"><div class="row"><div class="label">Ürün</div><div class="value">${esc(order.fabricName)} / ${esc(order.fabricColor)}</div></div><div class="row"><div class="label">Profil / Montaj</div><div class="value">${esc(order.profileColor)} / ${esc(order.mountType)} / ${esc(formatCaseType(order.caseType))}</div></div>${measurementRows}</div><div class="section"><b>Not:</b><p>${esc(order.customerNote)}</p></div><div class="total"><span>TOPLAM</span><b>${esc(money(order.totalPrice))}</b></div></div></body></html>`); popup.document.close();
+  const measurements = normalizeOrderMeasurements(order);
+  const measurementRows = measurements.map((item, index) => `<tr><td>${index + 1}</td><td>${esc(item.label)}</td><td>${esc(item.width)} cm</td><td>${esc(item.height)} cm</td><td>${esc(item.quantity)}</td></tr>`).join("");
+  const customerAddress = [order.customerCity, order.customerAddress].filter(Boolean).join(" ");
+  popup.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>Sipariş ${esc(order.orderNumber)}</title><style>
+    @page{size:A5 portrait;margin:8mm}
+    *{box-sizing:border-box}
+    body{margin:0;background:#f4f7f8;color:#102033;font-family:Inter,Arial,sans-serif;font-size:11px;line-height:1.45}
+    .sheet{min-height:194mm;background:#fff;border:1.6mm solid #102033;padding:8mm;position:relative}
+    .top{display:grid;grid-template-columns:1fr auto;gap:8mm;align-items:start;border-bottom:1px solid #d6dee2;padding-bottom:6mm}
+    .brand{font-size:28px;font-weight:900;letter-spacing:1.2px;color:#102033}
+    .subtitle{margin-top:1mm;color:#637082;font-size:9px;font-weight:700;letter-spacing:1.8px;text-transform:uppercase}
+    .meta{text-align:right}
+    .meta .no{font-size:16px;font-weight:900;color:#102033}
+    .meta .date{margin-top:1mm;color:#637082;font-size:10px}
+    .status{display:inline-block;margin-top:2mm;border:1px solid #cbd6dc;border-radius:999px;padding:1mm 3mm;color:#344154;font-size:9px;font-weight:800;text-transform:uppercase}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:4mm;margin-top:6mm}
+    .card{border:1px solid #dce4e8;border-radius:3mm;overflow:hidden}
+    .card h2{margin:0;background:#f2f7f8;border-bottom:1px solid #dce4e8;padding:2.5mm 3mm;color:#102033;font-size:10px;letter-spacing:1.1px;text-transform:uppercase}
+    .body{padding:2mm 3mm}
+    .field{display:grid;grid-template-columns:24mm 1fr;gap:3mm;border-bottom:1px solid #edf1f3;padding:1.8mm 0}
+    .field:last-child{border-bottom:0}
+    .label{color:#667386;font-size:9px;font-weight:700;text-transform:uppercase}
+    .value{color:#102033;font-weight:800}
+    .full{margin-top:4mm}
+    table{width:100%;border-collapse:collapse}
+    th{background:#102033;color:#fff;padding:2.2mm 2mm;text-align:left;font-size:8.5px;letter-spacing:.6px;text-transform:uppercase}
+    td{border-bottom:1px solid #e6edf0;padding:2.2mm 2mm;font-weight:800}
+    td:first-child{width:8mm;color:#667386}
+    th:nth-child(3),th:nth-child(4),th:nth-child(5),td:nth-child(3),td:nth-child(4),td:nth-child(5){text-align:right}
+    .note{min-height:19mm;white-space:pre-wrap;color:#28374a}
+    .summary{display:grid;grid-template-columns:1fr 42mm;gap:4mm;align-items:stretch;margin-top:5mm}
+    .terms{border:1px solid #dce4e8;border-radius:3mm;padding:3mm;color:#637082;font-size:9px}
+    .total{background:#102033;color:#fff;border-radius:3mm;padding:4mm;text-align:right}
+    .total span{display:block;color:#b9c9d0;font-size:9px;font-weight:800;letter-spacing:1px;text-transform:uppercase}
+    .total b{display:block;margin-top:1mm;font-size:20px}
+    .footer{position:absolute;left:8mm;right:8mm;bottom:5mm;display:flex;justify-content:space-between;border-top:1px solid #d6dee2;padding-top:2mm;color:#637082;font-size:8.5px}
+  </style></head><body onload="window.print()"><div class="sheet">
+    <div class="top"><div><div class="brand">RGNFIX</div><div class="subtitle">Plise perde sipariş formu</div></div><div class="meta"><div class="no">#${esc(order.orderNumber)}</div><div class="date">${esc(date(order.createdAt))}</div><div class="status">${esc(statusLabels[order.status] || order.status)}</div></div></div>
+    <div class="grid">
+      <section class="card"><h2>Müşteri Bilgileri</h2><div class="body"><div class="field"><div class="label">Müşteri</div><div class="value">${esc(order.customerName)}</div></div><div class="field"><div class="label">Telefon</div><div class="value">${esc(order.customerPhone)}</div></div><div class="field"><div class="label">Adres</div><div class="value">${esc(customerAddress)}</div></div></div></section>
+      <section class="card"><h2>Ürün Bilgileri</h2><div class="body"><div class="field"><div class="label">Ürün</div><div class="value">${esc(order.fabricName)}</div></div><div class="field"><div class="label">Varyant</div><div class="value">${esc(order.fabricColor)}</div></div><div class="field"><div class="label">Profil</div><div class="value">${esc(titleCase(order.profileColor))}</div></div><div class="field"><div class="label">Montaj</div><div class="value">${esc(mountName(order.mountType))}</div></div><div class="field"><div class="label">Kasa</div><div class="value">${esc(formatCaseType(order.caseType))}</div></div></div></section>
+    </div>
+    <section class="card full"><h2>Ölçüler</h2><table><thead><tr><th>#</th><th>Alan</th><th>En</th><th>Boy</th><th>Adet</th></tr></thead><tbody>${measurementRows}</tbody></table></section>
+    <section class="card full"><h2>Sipariş Notu</h2><div class="body note">${esc(order.customerNote || "Not eklenmedi.")}</div></section>
+    <div class="summary"><div class="terms">Ölçüler müşteri beyanına göre özel üretime alınır. Üretim öncesi ürün, profil, montaj ve ölçü bilgilerini kontrol ediniz.</div><div class="total"><span>Toplam Tutar</span><b>${esc(money(order.totalPrice))}</b></div></div>
+    <div class="footer"><span>RGNFIX · rgnfix.com</span><span>WhatsApp: 0530 028 89 03</span></div>
+  </div></body></html>`); popup.document.close();
 }
 
 export default function AdminPanel(){
