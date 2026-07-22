@@ -15,6 +15,13 @@
       "when": 1783646331205,
       "tag": "0001_wet_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1784702400000,
+      "tag": "0002_orders_measurements",
+      "breakpoints": true
     }
   ]
 }

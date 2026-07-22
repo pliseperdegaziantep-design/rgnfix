@@ -1,4 +1,5 @@
 import { int, mysqlEnum, mysqlTable, text, timestamp, varchar, decimal, json } from "drizzle-orm/mysql-core";
+import type { OrderMeasurement } from "../shared/orderMeasurements";
 
 export const users = mysqlTable("users", {
   id: int("id").autoincrement().primaryKey(),
@@ -63,6 +64,7 @@ export const orders = mysqlTable("orders", {
   width: decimal("width", { precision: 8, scale: 2 }),
   height: decimal("height", { precision: 8, scale: 2 }),
   quantity: int("quantity").default(1),
+  measurements: json("measurements").$type<OrderMeasurement[]>(),
   unitPrice: decimal("unitPrice", { precision: 10, scale: 2 }),
   mountingPrice: decimal("mountingPrice", { precision: 10, scale: 2 }),
   shippingPrice: decimal("shippingPrice", { precision: 10, scale: 2 }),

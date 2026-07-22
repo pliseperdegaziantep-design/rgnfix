@@ -74,7 +74,7 @@
 - [x] Kumaş serileri güncelle (Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro)
 - [x] Fiyatları güncelle (485, 545, 545, 645, 845 TL/m²)
 - [x] Profil renkleri ekle (Beyaz, Krem, Gümüş Gri, Antrasit, Kahve, Bronz)
-- [x] Kasa kuralları ekle (tek cam = kalın kasa, çift cam = slim kasa, slim fark +60 TL/m²)
+- [x] Kasa kuralları ekle (tek cam = standart kasa, çift cam = slim kasa, slim fark +60 TL/m²)
 - [x] Sesli ölçü rehberi - pencere tipine göre sesli yönlendirme (TTS)
 - [x] Cam balkon ölçü kuralları (cam ölçüsü, açılır kanat -2cm, numaralandırma)
 - [x] PVC/Alüminyum ölçü kuralları (cam içinden cam içine, pay düşülmez)

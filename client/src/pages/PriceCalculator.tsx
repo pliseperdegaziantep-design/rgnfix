@@ -10,6 +10,7 @@ import { PdfExport } from "@/components/PdfExport";
 import { MOUNT_TYPES, PROFILE_COLORS, FABRIC_SERIES, CASE_TYPES } from "@shared/types";
 import { formatFabricVariant, getCurrentFabricPrice, getFabricVariants } from "@shared/fabricCatalog";
 import type { MeasurementTransferPayload } from "@/features/live-measurement/rules";
+import { formatCaseType } from "@shared/orderMeasurements";
 
 interface MeasurementItem {
   id: string;
@@ -17,6 +18,15 @@ interface MeasurementItem {
   height: string;
   quantity: string;
   label: string;
+}
+
+function buildMeasurementsParam(items: Array<{ label: string; width: number; height: number; qty: number }>) {
+  return encodeURIComponent(JSON.stringify(items.map(item => ({
+    label: item.label,
+    width: item.width,
+    height: item.height,
+    quantity: item.qty,
+  }))));
 }
 
 type PriceSetting = {
@@ -141,6 +151,7 @@ export default function PriceCalculator() {
     let message = "🏠 *RGNFIX - Demonte Ürün Teklifi*\n\n";
     message += `📋 *Kumaş:* ${selectedSeries.name}\n🎨 *Varyant:* ${fabricVariant}\n`;
     message += `⚙️ *Montaj:* ${MOUNT_TYPES.find(mount => mount.id === mountType)?.name || ""}\n`;
+    message += `🧰 *Kasa:* ${formatCaseType(caseType)}\n`;
     message += `💵 *m² Fiyatı:* ${currentPricePerSqm.toLocaleString("tr-TR")} ₺\n\n📐 *Ölçüler:*\n`;
     calculation.items.forEach(item => { message += `• ${item.label}: ${item.width} × ${item.height} cm × ${item.qty} adet\n`; });
     message += `\n💰 *Toplam:* ${Number(calculation.totalPrice).toLocaleString("tr-TR")} ₺\n`;
@@ -148,9 +159,8 @@ export default function PriceCalculator() {
     return encodeURIComponent(message);
   };
 
-  const primaryMeasurement = calculation?.items[0];
-  const orderUrl = primaryMeasurement
-    ? `/siparis?series=${seriesId}&fabricColor=${encodeURIComponent(fabricVariant)}&mount=${mountType}&case=${caseType}&profile=${profileColor}&width=${primaryMeasurement.width}&height=${primaryMeasurement.height}&count=${primaryMeasurement.qty}&window=${windowType}`
+  const orderUrl = calculation?.items.length
+    ? `/siparis?series=${seriesId}&fabricColor=${encodeURIComponent(fabricVariant)}&mount=${mountType}&case=${caseType}&profile=${profileColor}&measurements=${buildMeasurementsParam(calculation.items)}&window=${windowType}`
     : "/siparis";
 
   return <div className="container max-w-5xl py-8">

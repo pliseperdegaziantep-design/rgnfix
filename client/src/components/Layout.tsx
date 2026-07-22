@@ -13,7 +13,7 @@ const navItems = [
   { href: "/olcu-asistani", label: "Ölçü Asistanı", icon: Ruler },
   { href: "/fiyat-hesapla", label: "Fiyat Hesapla", icon: Calculator },
   { href: "/kumas-karsilastirma", label: "Plise Perde", icon: Layers },
-  { href: "/sineklik", label: "Sineklik", icon: Grid2X2 },
+  { href: "/sineklik", label: "Plise Sineklik", icon: Grid2X2 },
   { href: "/renk-danismani", label: "Renk Danışmanı", icon: Palette },
   { href: "/montaj-rehberi", label: "Montaj Rehberi", icon: Wrench },
   { href: "/siparis", label: "Sipariş", icon: ShoppingCart },
@@ -24,7 +24,7 @@ const SEO: Record<string, { title: string; description: string }> = {
   "/": { title: "RGNFIX | Cam Balkon Plise Perde ve Akıllı Online Sipariş", description: "Cam balkon, PVC ve alüminyum doğramalar için ölçüye özel plise perde. Anlık fiyat, online sipariş ve 3000 TL üzeri ücretsiz kargo." },
   "/siparis": { title: "Online Plise Perde Siparişi | RGNFIX", description: "Ölçünüzü girin, kumaş ve montaj tipini seçin, plise perde siparişinizi online oluşturun. Türkiye geneli gönderim." },
   "/fiyat-hesapla": { title: "Plise Perde Fiyat Hesaplama 2026 | RGNFIX", description: "Nova, Neo Fashion, Nano Clean, Nano Insulation ve Nano Pro fiyatlarını ölçünüze göre anında hesaplayın." },
-  "/sineklik": { title: "Akordiyon Sineklik Fiyatları | Kapı ve Pencere Sinekliği", description: "Kapı ve pencere için ölçüye özel akordiyon sineklik. Fiber tül, kolay kullanım ve Türkiye geneli sipariş desteği." },
+  "/sineklik": { title: "Plise Sineklik Fiyatları | Kapı ve Pencere Plise Sineklik", description: "Kapı ve pencere için ölçüye özel plise sineklik. Fiber tül, kolay kullanım ve Türkiye geneli sipariş desteği." },
   "/renk-danismani": { title: "Plise Perde Renk ve Varyant Önerici | RGNFIX", description: "Duvar, zemin ve mobilya renginize uygun plise perde serisini ve VR varyantını bulun." },
 };
 
@@ -69,7 +69,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         </div>
       </header>
       <main className="flex-1">{children}</main>
-      <footer className="border-t border-border/50 bg-muted/30"><div className="container py-12"><div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5"><div className="space-y-3"><BrandLogo className="h-12" /><p className="text-sm text-muted-foreground">Akıllı ölçü ve demonte ürün platformu.</p></div><div><h4 className="mb-3 font-semibold text-sm">Hizmetler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/ai-danismani">AI Danışman</Link><br/><Link href="/olcu-asistani">Ölçü Asistanı</Link><br/><Link href="/fiyat-hesapla">Fiyat Hesaplama</Link><br/><Link href="/siparis-sorgula">Sipariş Sorgulama</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Ürünler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/kumas-karsilastirma">Plise Perde</Link><br/><Link href="/sineklik">Sineklik</Link><br/><Link href="/montaj-rehberi">Montaj Rehberi</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Yasal</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/gizlilik-politikasi">Gizlilik Politikası</Link><br/><Link href="/kullanim-kosullari">Kullanım Koşulları</Link><br/><Link href="/kvkk-aydinlatma">KVKK</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">İletişim</h4><div className="space-y-2 text-sm text-muted-foreground"><p>Dijital destek merkezi</p><a href="tel:+905300288903">+90 530 028 89 03</a><p>Türkiye geneli hizmet</p></div></div></div><div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">© {new Date().getFullYear()} RGNFIX by Plise Perde Gaziantep.</div></div></footer>
+      <footer className="border-t border-border/50 bg-muted/30"><div className="container py-12"><div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5"><div className="space-y-3"><BrandLogo className="h-12" /><p className="text-sm text-muted-foreground">Akıllı ölçü ve demonte ürün platformu.</p></div><div><h4 className="mb-3 font-semibold text-sm">Hizmetler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/ai-danismani">AI Danışman</Link><br/><Link href="/olcu-asistani">Ölçü Asistanı</Link><br/><Link href="/fiyat-hesapla">Fiyat Hesaplama</Link><br/><Link href="/siparis-sorgula">Sipariş Sorgulama</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Ürünler</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/kumas-karsilastirma">Plise Perde</Link><br/><Link href="/sineklik">Plise Sineklik</Link><br/><Link href="/montaj-rehberi">Montaj Rehberi</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">Yasal</h4><div className="space-y-2 text-sm text-muted-foreground"><Link href="/gizlilik-politikasi">Gizlilik Politikası</Link><br/><Link href="/kullanim-kosullari">Kullanım Koşulları</Link><br/><Link href="/kvkk-aydinlatma">KVKK</Link></div></div><div><h4 className="mb-3 font-semibold text-sm">İletişim</h4><div className="space-y-2 text-sm text-muted-foreground"><p>Dijital destek merkezi</p><a href="tel:+905300288903">+90 530 028 89 03</a><p>Türkiye geneli hizmet</p></div></div></div><div className="mt-8 border-t pt-8 text-center text-sm text-muted-foreground">© {new Date().getFullYear()} RGNFIX by Plise Perde Gaziantep.</div></div></footer>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { formatCaseType, formatMeasurementLine, normalizeOrderMeasurements } from "@shared/orderMeasurements";
 
 const statusLabels: Record<string, string> = {
   pending: "Onay Bekliyor",
@@ -36,6 +37,7 @@ type TrackedOrder = {
   width?: string | number;
   height?: string | number;
   quantity?: number;
+  measurements?: unknown;
   totalPrice?: string | number;
   createdAt?: string;
   updatedAt?: string;
@@ -90,8 +92,8 @@ export default function OrderTracking() {
         <div className="flex items-center gap-4"><div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary/10 text-primary"><Icon className="h-6 w-6" /></div><div><p className="text-xs text-muted-foreground">Sipariş #{order.orderNumber}</p><h2 className="text-xl font-bold">{statusLabels[order.status] || order.status}</h2></div></div>
         <div className="mt-6 grid gap-3 sm:grid-cols-2 text-sm">
           <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Ürün</p><p className="mt-1 font-semibold">{order.fabricName || "Plise Perde"}</p><p>{order.fabricColor || "—"}</p></div>
-          <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Ölçü / Adet</p><p className="mt-1 font-semibold">{order.width || "—"} × {order.height || "—"} cm</p><p>{order.quantity || 1} adet</p></div>
-          <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Montaj / Kasa</p><p className="mt-1 font-semibold">{order.mountType || "—"} / {order.caseType || "—"}</p></div>
+          <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Ölçü / Adet</p><div className="mt-1 space-y-1 font-semibold">{normalizeOrderMeasurements(order).map((item, index) => <p key={`${item.label}-${index}`}>{formatMeasurementLine(item)}</p>)}</div></div>
+          <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Montaj / Kasa</p><p className="mt-1 font-semibold">{order.mountType || "—"} / {formatCaseType(order.caseType)}</p></div>
           <div className="rounded-xl bg-muted/50 p-4"><p className="text-muted-foreground">Sipariş Tarihi</p><p className="mt-1 font-semibold">{order.createdAt ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "long" }).format(new Date(order.createdAt)) : "—"}</p></div>
         </div>
         <p className="mt-5 text-xs text-muted-foreground">Gizliliğiniz için bu ekranda müşteri adresi ve telefon bilgileri gösterilmez.</p>

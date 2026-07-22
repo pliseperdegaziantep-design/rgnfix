@@ -123,7 +123,7 @@ export async function ensureAppSchema() {
       status enum('pending','confirmed','production','preparing','shipping','delivered','cancelled') NOT NULL DEFAULT 'pending',
       fabricId int NULL, fabricName varchar(100) NULL, profileColor varchar(50) NULL, fabricColor varchar(50) NULL,
       mountType varchar(50) NULL, caseType varchar(20) NULL, width decimal(8,2) NULL, height decimal(8,2) NULL,
-      quantity int NULL DEFAULT 1, unitPrice decimal(10,2) NULL, mountingPrice decimal(10,2) NULL,
+      quantity int NULL DEFAULT 1, measurements json NULL, unitPrice decimal(10,2) NULL, mountingPrice decimal(10,2) NULL,
       shippingPrice decimal(10,2) NULL, totalPrice decimal(10,2) NOT NULL, customerName varchar(200) NULL,
       customerPhone varchar(20) NULL, customerAddress text NULL, customerCity varchar(100) NULL, customerNote text NULL,
       measurementRecordingUrl text NULL, measurementRecordingConsentAt timestamp NULL,
@@ -156,8 +156,8 @@ export async function ensureAppSchema() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
   ];
 
-  for (const [index, statement] of baseTables.entries()) {
-    await executeSchemaStatement(db, statement, `base table ${index + 1}`);
+  for (let index = 0; index < baseTables.length; index += 1) {
+    await executeSchemaStatement(db, baseTables[index], `base table ${index + 1}`);
   }
 
   await addColumn(db, "ALTER TABLE users ADD COLUMN passwordHash varchar(255) NULL", "users.passwordHash");
@@ -170,6 +170,7 @@ export async function ensureAppSchema() {
   await addColumn(db, "ALTER TABLE users ADD COLUMN privacyAcceptedAt timestamp NULL", "users.privacyAcceptedAt");
   await addColumn(db, "ALTER TABLE orders ADD COLUMN measurementRecordingUrl text NULL", "orders.measurementRecordingUrl");
   await addColumn(db, "ALTER TABLE orders ADD COLUMN measurementRecordingConsentAt timestamp NULL", "orders.measurementRecordingConsentAt");
+  await addColumn(db, "ALTER TABLE orders ADD COLUMN measurements json NULL", "orders.measurements");
 
   try {
     await db.execute(sql.raw(`UPDATE users SET emailVerifiedAt = COALESCE(emailVerifiedAt, createdAt), termsAcceptedAt = COALESCE(termsAcceptedAt, createdAt), privacyAcceptedAt = COALESCE(privacyAcceptedAt, createdAt) WHERE passwordHash IS NOT NULL AND (emailVerifiedAt IS NULL OR termsAcceptedAt IS NULL OR privacyAcceptedAt IS NULL)`));

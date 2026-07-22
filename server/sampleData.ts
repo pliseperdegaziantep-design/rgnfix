@@ -1,4 +1,5 @@
 import { FABRIC_SERIES, PROFILE_COLORS } from "@shared/types";
+import type { OrderMeasurement } from "@shared/orderMeasurements";
 
 const commonColors = PROFILE_COLORS.map(color => color.name);
 
@@ -62,6 +63,7 @@ type DemoOrder = {
   width: string;
   height: string;
   quantity: number;
+  measurements: OrderMeasurement[] | null;
   unitPrice: string;
   mountingPrice: string;
   shippingPrice: string;

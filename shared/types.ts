@@ -57,6 +57,13 @@ export interface PriceCalculation {
   totalPrice: number;
 }
 
+export interface OrderMeasurementInput {
+  label: string;
+  width: number;
+  height: number;
+  quantity: number;
+}
+
 export interface OrderInput {
   fabricId: number;
   fabricName: string;
@@ -67,6 +74,7 @@ export interface OrderInput {
   width: number;
   height: number;
   quantity: number;
+  measurements?: OrderMeasurementInput[];
   totalPrice: number;
   unitPrice: number;
   caseSurcharge: number;
@@ -189,7 +197,7 @@ export const PROFILE_COLORS = [
 
 // Kasa Tipleri
 export const CASE_TYPES = [
-  { id: "kalin", name: "Kalın Kasa", description: "Tek cama uygulanır", surchargePerSqm: 0 },
+  { id: "kalin", name: "Standart Kasa", description: "Tek cama uygulanır", surchargePerSqm: 0 },
   { id: "slim", name: "Slim Kasa", description: "Çift cama uygulanır", surchargePerSqm: 60 },
 ] as const;
 
@@ -267,9 +275,9 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
       {
         id: 1,
         title: "Pencere Tipini Kontrol Edin",
-        voiceText: "PVC pencerenizin tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-        details: "Tek cama kalın kasa, çift cama slim kasa uygulanır. Slim kasa farkı metrekare başına 60 TL eklenir.",
-        tips: ["Tek cam = Kalın kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
+        voiceText: "PVC pencerenizin tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama standart kasa, çift cama slim kasa uygulanır.",
+        details: "Tek cama standart kasa, çift cama slim kasa uygulanır. Slim kasa farkı metrekare başına 60 TL eklenir.",
+        tips: ["Tek cam = Standart kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
       },
       {
         id: 2,
@@ -308,7 +316,7 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
     importantNotes: [
       "Cam içinden cam içine net yazılır",
       "Pay düşülmez",
-      "Tek cam = Kalın kasa, Çift cam = Slim kasa",
+      "Tek cam = Standart kasa, Çift cam = Slim kasa",
       "Slim kasa farkı: +60 TL/m²",
     ],
   },
@@ -318,9 +326,9 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
       {
         id: 1,
         title: "Doğrama Tipini Kontrol Edin",
-        voiceText: "Alüminyum doğramanızın tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-        details: "Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-        tips: ["Tek cam = Kalın kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
+        voiceText: "Alüminyum doğramanızın tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama standart kasa, çift cama slim kasa uygulanır.",
+        details: "Tek cama standart kasa, çift cama slim kasa uygulanır.",
+        tips: ["Tek cam = Standart kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
       },
       {
         id: 2,
@@ -351,7 +359,7 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
     importantNotes: [
       "Cam içinden cam içine net yazılır",
       "Pay düşülmez",
-      "Tek cam = Kalın kasa, Çift cam = Slim kasa",
+      "Tek cam = Standart kasa, Çift cam = Slim kasa",
       "Slim kasa farkı: +60 TL/m²",
     ],
   },
@@ -362,8 +370,8 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
         id: 1,
         title: "Pencere Tipini Kontrol Edin",
         voiceText: "Standart pencerenizin tek camlı mı yoksa çift camlı mı olduğunu kontrol edin.",
-        details: "Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-        tips: ["Tek cam = Kalın kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
+        details: "Tek cama standart kasa, çift cama slim kasa uygulanır.",
+        tips: ["Tek cam = Standart kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
       },
       {
         id: 2,
@@ -400,8 +408,8 @@ export const MEASUREMENT_INSTRUCTIONS: MeasurementInstruction[] = [
         id: 1,
         title: "Kapı Tipini Kontrol Edin",
         voiceText: "Balkon kapınızın tek camlı mı yoksa çift camlı mı olduğunu kontrol edin.",
-        details: "Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-        tips: ["Tek cam = Kalın kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
+        details: "Tek cama standart kasa, çift cama slim kasa uygulanır.",
+        tips: ["Tek cam = Standart kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
       },
       {
         id: 2,
@@ -440,9 +448,9 @@ export const SURGULU_KAPI_INSTRUCTION: MeasurementInstruction = {
     {
       id: 1,
       title: "Cam Tipini Kontrol Edin",
-      voiceText: "Sürgülü kapı veya cam pencerenizin tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-      details: "Tek cama kalın kasa, çift cama slim kasa uygulanır.",
-      tips: ["Tek cam = Kalın kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
+      voiceText: "Sürgülü kapı veya cam pencerenizin tek camlı mı yoksa çift camlı mı olduğunu kontrol edin. Tek cama standart kasa, çift cama slim kasa uygulanır.",
+      details: "Tek cama standart kasa, çift cama slim kasa uygulanır.",
+      tips: ["Tek cam = Standart kasa", "Çift cam = Slim kasa (+60 TL/m²)"],
     },
     {
       id: 2,
