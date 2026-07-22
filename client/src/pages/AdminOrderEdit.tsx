@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
+import { formatMeasurementLine, normalizeOrderMeasurements } from "@shared/orderMeasurements";
 
 const statuses = [
   ["pending", "Onay Bekliyor"], ["confirmed", "Onaylandı"], ["production", "Üretimde"],
@@ -48,6 +49,7 @@ export default function AdminOrderEdit() {
 
   const change = (field: string, value: string) => setForm(current => ({ ...current, [field]: value }));
   const title = useMemo(() => form.orderNumber ? `#${form.orderNumber} Siparişini Düzenle` : "Siparişi Düzenle", [form.orderNumber]);
+  const orderMeasurements = useMemo(() => normalizeOrderMeasurements(form), [form]);
 
   const save = async () => {
     setSaving(true);
@@ -120,7 +122,7 @@ export default function AdminOrderEdit() {
           <Field label="Kumaş Varyantı" value={form.fabricColor} onChange={value => change("fabricColor", value)} />
           <div><Label>Profil Rengi</Label><Select value={form.profileColor || ""} onValueChange={value => change("profileColor", value)}><SelectTrigger className="mt-2"><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{profileOptions.map(value => <SelectItem key={value} value={value}>{value}</SelectItem>)}</SelectContent></Select></div>
           <div><Label>Montaj Tipi</Label><Select value={form.mountType || ""} onValueChange={value => change("mountType", value)}><SelectTrigger className="mt-2"><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{mountOptions.map(([value,label]) => <SelectItem key={value} value={value}>{label}</SelectItem>)}</SelectContent></Select></div>
-          <div><Label>Kasa Tipi</Label><Select value={form.caseType || "kalin"} onValueChange={value => change("caseType", value)}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="kalin">Kalın Kasa / Tek Cam</SelectItem><SelectItem value="slim">Slim Kasa / Çift Cam</SelectItem></SelectContent></Select></div>
+          <div><Label>Kasa Tipi</Label><Select value={form.caseType || "kalin"} onValueChange={value => change("caseType", value)}><SelectTrigger className="mt-2"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="kalin">Standart Kasa / Tek Cam</SelectItem><SelectItem value="slim">Slim Kasa / Çift Cam</SelectItem></SelectContent></Select></div>
         </CardContent></Card>
 
         <Card><CardHeader><CardTitle>Ölçü ve Adet</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3">
@@ -128,6 +130,7 @@ export default function AdminOrderEdit() {
           <Field label="Boy (cm)" type="number" value={form.height} onChange={value => change("height", value)} />
           <Field label="Adet" type="number" value={form.quantity} onChange={value => change("quantity", value)} />
           <div className="sm:col-span-3 rounded-xl border bg-muted/30 p-4 text-sm text-muted-foreground"><ShoppingCart className="mb-2 h-5 w-5 text-primary" />Ölçüleri çelik metreyle santimetre olarak girin. Ondalıklı ölçüleri yuvarlamadan kaydedin.</div>
+          <div className="sm:col-span-3 rounded-xl border bg-muted/30 p-4 text-sm"><p className="font-semibold text-foreground">Kayıtlı tüm ölçüler</p><div className="mt-2 space-y-1 text-muted-foreground">{orderMeasurements.map((item, index) => <p key={`${item.label}-${index}`}>{formatMeasurementLine(item)}</p>)}</div></div>
         </CardContent></Card>
       </div>
 

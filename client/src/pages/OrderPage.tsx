@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { trpc } from "@/lib/trpc";
 import { CASE_TYPES, MOUNT_TYPES, PROFILE_COLORS, WINDOW_TYPES } from "@shared/types";
 import { formatFabricVariant, getCurrentFabricPrice, getFabricVariants, type FabricVariant } from "@shared/fabricCatalog";
+import { formatCaseType } from "@shared/orderMeasurements";
 
-type MeasurementRow = { id: string; width: string; height: string; quantity: string };
+type MeasurementRow = { id: string; label: string; width: string; height: string; quantity: string };
 type PriceSetting = { seriesId: string; seriesName: string; basePrice: string | number; adhesiveSurcharge: string | number };
 
 function parseCm(value: string) { return Number(String(value).replace(",", ".")) || 0; }
@@ -25,6 +26,27 @@ function readApiVariants(colors: unknown): FabricVariant[] {
   if (!Array.isArray(colors)) return [];
   return colors.filter((color): color is string => typeof color === "string" && color.trim().length > 0).map((color, index) => ({ code: `VR ${String(index + 1).padStart(2, "0")}`, name: color.trim() }));
 }
+function readMeasurements(params: URLSearchParams): MeasurementRow[] {
+  const raw = params.get("measurements");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Array<{ label?: unknown; width?: unknown; height?: unknown; quantity?: unknown; qty?: unknown }>;
+      const rows = Array.isArray(parsed)
+        ? parsed.map((item, index) => ({
+          id: String(index + 1),
+          label: typeof item.label === "string" && item.label.trim() ? item.label.trim() : `${index + 1}. Ölçü`,
+          width: String(item.width ?? ""),
+          height: String(item.height ?? ""),
+          quantity: String(item.quantity ?? item.qty ?? "1"),
+        })).filter(item => parseCm(item.width) > 0 && parseCm(item.height) > 0)
+        : [];
+      if (rows.length > 0) return rows;
+    } catch {
+      // Fall through to legacy single-measurement query params.
+    }
+  }
+  return [{ id: "1", label: "1. Ölçü", width: params.get("width") || "", height: params.get("height") || "", quantity: params.get("count") || "1" }];
+}
 
 export default function OrderPage() {
   const { user } = useAuth();
@@ -34,7 +56,7 @@ export default function OrderPage() {
   const createOrderMutation = trpc.orders.create.useMutation();
   const [priceSettings, setPriceSettings] = useState<Record<string, PriceSetting>>({});
   const [createdOrderNumber, setCreatedOrderNumber] = useState("");
-  const [measurements, setMeasurements] = useState<MeasurementRow[]>([{ id: "1", width: params.get("width") || "", height: params.get("height") || "", quantity: params.get("count") || "1" }]);
+  const [measurements, setMeasurements] = useState<MeasurementRow[]>(() => readMeasurements(params));
   const [form, setForm] = useState({
     fabricId: "",
     fabricColor: params.get("fabricColor") || "",
@@ -92,7 +114,7 @@ export default function OrderPage() {
   }, 0), [measurements, pricePerSqm]);
 
   const updateMeasurement = (id: string, field: keyof MeasurementRow, value: string) => setMeasurements(current => current.map(item => item.id === id ? { ...item, [field]: value } : item));
-  const addMeasurement = () => setMeasurements(current => [...current, { id: String(Date.now()), width: "", height: "", quantity: "1" }]);
+  const addMeasurement = () => setMeasurements(current => [...current, { id: String(Date.now()), label: `${current.length + 1}. Ölçü`, width: "", height: "", quantity: "1" }]);
   const removeMeasurement = (id: string) => setMeasurements(current => current.length > 1 ? current.filter(item => item.id !== id) : current);
 
   const submit = async () => {
@@ -105,9 +127,15 @@ export default function OrderPage() {
       return;
     }
     try {
-      const first = measurements[0];
-      const totalQuantity = measurements.reduce((sum, item) => sum + (Number.parseInt(item.quantity, 10) || 1), 0);
-      const detail = measurements.map((item, index) => `${index + 1}. ölçü: ${item.width} × ${item.height} cm, ${item.quantity} adet`).join("\n");
+      const payloadMeasurements = measurements.map((item, index) => ({
+        label: item.label.trim() || `${index + 1}. Ölçü`,
+        width: parseCm(item.width),
+        height: parseCm(item.height),
+        quantity: Number.parseInt(item.quantity, 10) || 1,
+      }));
+      const first = payloadMeasurements[0];
+      const totalQuantity = payloadMeasurements.reduce((sum, item) => sum + item.quantity, 0);
+      const detail = payloadMeasurements.map((item, index) => `${index + 1}. ölçü: ${item.label}: ${item.width} × ${item.height} cm, ${item.quantity} adet`).join("\n");
       const result = await createOrderMutation.mutateAsync({
         fabricId: Number(form.fabricId),
         fabricName: selectedFabric.name,
@@ -115,9 +143,10 @@ export default function OrderPage() {
         profileColor: form.profileColor,
         mountType: form.mountType,
         caseType: form.caseType,
-        width: parseCm(first.width),
-        height: parseCm(first.height),
+        width: first.width,
+        height: first.height,
         quantity: totalQuantity,
+        measurements: payloadMeasurements,
         totalPrice,
         customerName: form.customerName,
         customerPhone: form.customerPhone,
@@ -145,11 +174,11 @@ export default function OrderPage() {
           <div className="space-y-2"><Label>Varyant *</Label><Select value={form.fabricColor} onValueChange={value => setForm(current => ({ ...current, fabricColor: value }))} disabled={!selectedFabric}><SelectTrigger><SelectValue placeholder="Varyant seçin" /></SelectTrigger><SelectContent>{variants.map(variant => <SelectItem key={variant.code} value={formatFabricVariant(variant)}>{formatFabricVariant(variant)}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-2"><Label>Uygulama Alanı *</Label><Select value={form.windowType} onValueChange={value => setForm(current => ({ ...current, windowType: value, mountType: value === "pvc-cam" || value === "aluminyum" ? "" : current.mountType }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{WINDOW_TYPES.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-2"><Label>Montaj Tipi *</Label><Select value={form.mountType} onValueChange={value => setForm(current => ({ ...current, mountType: value }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{availableMountTypes.map(item => <SelectItem key={item.id} value={item.id}>{item.name}{item.id === "yapisma" ? ` (+${Number(configured?.adhesiveSurcharge ?? 65)} TL/m²)` : ""}</SelectItem>)}</SelectContent></Select></div>
-          <div className="space-y-2"><Label>Kasa Tipi *</Label><Select value={form.caseType} onValueChange={value => setForm(current => ({ ...current, caseType: value as "kalin" | "slim", profileColor: value === "slim" && !["beyaz", "antrasit"].includes(current.profileColor) ? "" : current.profileColor }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CASE_TYPES.map(item => <SelectItem key={item.id} value={item.id}>{item.name}{item.surchargePerSqm ? ` (+${item.surchargePerSqm} TL/m²)` : ""}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-2"><Label>Kasa Tipi *</Label><Select value={form.caseType} onValueChange={value => setForm(current => ({ ...current, caseType: value as "kalin" | "slim", profileColor: value === "slim" && !["beyaz", "antrasit"].includes(current.profileColor) ? "" : current.profileColor }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{CASE_TYPES.map(item => <SelectItem key={item.id} value={item.id}>{formatCaseType(item.id)}{item.surchargePerSqm ? ` (+${item.surchargePerSqm} TL/m²)` : ""}</SelectItem>)}</SelectContent></Select></div>
           <div className="space-y-2"><Label>Profil Rengi *</Label><Select value={form.profileColor} onValueChange={value => setForm(current => ({ ...current, profileColor: value }))}><SelectTrigger><SelectValue placeholder="Seçin" /></SelectTrigger><SelectContent>{availableProfiles.map(item => <SelectItem key={item.id} value={item.id}>{item.name}</SelectItem>)}</SelectContent></Select></div>
         </CardContent></Card>
 
-        <Card><CardHeader><div className="flex items-center justify-between"><CardTitle>Ölçüler</CardTitle><Button variant="outline" size="sm" onClick={addMeasurement} className="gap-2"><Plus className="h-4 w-4" /> Ölçü Ekle</Button></div></CardHeader><CardContent className="space-y-3">{measurements.map((item, index) => <div key={item.id} className="grid grid-cols-[1fr_1fr_90px_auto] gap-2 rounded-xl border p-3"><div><Label className="text-xs">{index + 1}. En (cm)</Label><Input inputMode="decimal" value={item.width} onChange={event => updateMeasurement(item.id, "width", event.target.value)} /></div><div><Label className="text-xs">Boy (cm)</Label><Input inputMode="decimal" value={item.height} onChange={event => updateMeasurement(item.id, "height", event.target.value)} /></div><div><Label className="text-xs">Adet</Label><Input type="number" min="1" value={item.quantity} onChange={event => updateMeasurement(item.id, "quantity", event.target.value)} /></div><Button variant="ghost" size="icon" onClick={() => removeMeasurement(item.id)} className="mt-5 text-destructive"><Trash2 className="h-4 w-4" /></Button></div>)}</CardContent></Card>
+        <Card><CardHeader><div className="flex items-center justify-between"><CardTitle>Ölçüler</CardTitle><Button variant="outline" size="sm" onClick={addMeasurement} className="gap-2"><Plus className="h-4 w-4" /> Ölçü Ekle</Button></div></CardHeader><CardContent className="space-y-3">{measurements.map((item, index) => <div key={item.id} className="grid grid-cols-[1.2fr_1fr_1fr_90px_auto] gap-2 rounded-xl border p-3"><div><Label className="text-xs">Etiket</Label><Input value={item.label} onChange={event => updateMeasurement(item.id, "label", event.target.value)} /></div><div><Label className="text-xs">{index + 1}. En (cm)</Label><Input inputMode="decimal" value={item.width} onChange={event => updateMeasurement(item.id, "width", event.target.value)} /></div><div><Label className="text-xs">Boy (cm)</Label><Input inputMode="decimal" value={item.height} onChange={event => updateMeasurement(item.id, "height", event.target.value)} /></div><div><Label className="text-xs">Adet</Label><Input type="number" min="1" value={item.quantity} onChange={event => updateMeasurement(item.id, "quantity", event.target.value)} /></div><Button variant="ghost" size="icon" onClick={() => removeMeasurement(item.id)} className="mt-5 text-destructive"><Trash2 className="h-4 w-4" /></Button></div>)}</CardContent></Card>
 
         <Card><CardHeader><CardTitle>Teslimat Bilgileri</CardTitle></CardHeader><CardContent className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label>Ad Soyad *</Label><Input value={form.customerName} onChange={event => setForm(current => ({ ...current, customerName: event.target.value }))} /></div><div className="space-y-2"><Label>Telefon *</Label><Input inputMode="tel" value={form.customerPhone} onChange={event => setForm(current => ({ ...current, customerPhone: event.target.value }))} /></div><div className="space-y-2"><Label>Şehir *</Label><Input value={form.customerCity} onChange={event => setForm(current => ({ ...current, customerCity: event.target.value }))} /></div><div className="space-y-2"><Label>Adres *</Label><Input value={form.customerAddress} onChange={event => setForm(current => ({ ...current, customerAddress: event.target.value }))} /></div><div className="space-y-2 sm:col-span-2"><Label>Sipariş Notu</Label><Textarea value={form.customerNote} onChange={event => setForm(current => ({ ...current, customerNote: event.target.value }))} /></div></CardContent></Card>
       </div>

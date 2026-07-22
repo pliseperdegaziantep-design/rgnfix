@@ -9,6 +9,7 @@ import { getDb } from "./db";
 import { fabrics, orders, measurements, dealers, users } from "../drizzle/schema";
 import { eq, desc, sql } from "drizzle-orm";
 import { demoOrders, fallbackDealers, fallbackFabrics } from "./sampleData";
+import type { OrderMeasurement } from "@shared/orderMeasurements";
 
 async function getNextOrderNumber(db: NonNullable<Awaited<ReturnType<typeof getDb>>>) {
   return db.transaction(async tx => {
@@ -144,6 +145,12 @@ JSON döndür: {"recommendations":[{"series":"Nova","variant":"VR 02","color":"K
         width: z.number().positive(),
         height: z.number().positive(),
         quantity: z.number().int().positive(),
+        measurements: z.array(z.object({
+          label: z.string().trim().min(1),
+          width: z.number().positive(),
+          height: z.number().positive(),
+          quantity: z.number().int().positive(),
+        })).min(1).optional(),
         totalPrice: z.number().nonnegative(),
         customerName: z.string().min(2),
         customerPhone: z.string().min(7),
@@ -155,6 +162,19 @@ JSON döndür: {"recommendations":[{"series":"Nova","variant":"VR 02","color":"K
         const db = await getDb();
         const demoNext = Math.max(9999, ...demoOrders.map(order => Number(order.orderNumber) || 0)) + 1;
         const orderNumber = db ? await getNextOrderNumber(db) : String(demoNext);
+        const allMeasurements: OrderMeasurement[] = (input.measurements?.length ? input.measurements : [{
+          label: "1. Ölçü",
+          width: input.width,
+          height: input.height,
+          quantity: input.quantity,
+        }]).map((item, index) => ({
+          label: item.label.trim() || `${index + 1}. Ölçü`,
+          width: item.width,
+          height: item.height,
+          quantity: item.quantity,
+        }));
+        const firstMeasurement = allMeasurements[0];
+        const totalQuantity = allMeasurements.reduce((sum, item) => sum + item.quantity, 0);
         const orderValues = {
           userId: ctx.user?.id && ctx.user.id > 0 ? ctx.user.id : 0,
           orderNumber,
@@ -164,10 +184,11 @@ JSON döndür: {"recommendations":[{"series":"Nova","variant":"VR 02","color":"K
           profileColor: input.profileColor,
           mountType: input.mountType,
           caseType: input.caseType,
-          width: input.width.toString(),
-          height: input.height.toString(),
-          quantity: input.quantity,
-          unitPrice: (input.totalPrice / Math.max(input.quantity, 1)).toFixed(2),
+          width: firstMeasurement.width.toString(),
+          height: firstMeasurement.height.toString(),
+          quantity: totalQuantity,
+          measurements: allMeasurements,
+          unitPrice: (input.totalPrice / Math.max(totalQuantity, 1)).toFixed(2),
           mountingPrice: "0.00",
           shippingPrice: "0.00",
           totalPrice: input.totalPrice.toFixed(2),

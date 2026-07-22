@@ -26,7 +26,7 @@ export function registerBusinessRoutes(app: Express) {
     }
     const [rows] = await db.execute(sql`
       SELECT orderNumber, status, fabricName, fabricColor, profileColor, mountType,
-             caseType, width, height, quantity, totalPrice, createdAt, updatedAt
+             caseType, width, height, quantity, measurements, totalPrice, createdAt, updatedAt
       FROM orders
       WHERE orderNumber = ${orderNumber}
       LIMIT 1

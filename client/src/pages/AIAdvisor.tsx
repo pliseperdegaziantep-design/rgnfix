@@ -51,8 +51,8 @@ const advisorRule = [
   "Müşteri satın almak isterse uygun seriyi kısaca öner ve WhatsApp hattına yönlendir.",
   "Yalnızca Nova, Neo Fashion, Nano Clean, Nano Insulation, Nano Pro ve Honeycomb serilerini öner.",
   "Dekorasyon, mobilya, duvar rengi veya iç mimari önerisi verme.",
-  "Akordiyon sineklikte yalnızca standart fiber sineklik tülü vardır; plise perde kumaşı önerme.",
-  "Sineklik fiyatı sorulursa WhatsApp’a yönlendir.",
+  "Plise sineklikte yalnızca standart fiber sineklik tülü vardır; plise perde kumaşı önerme.",
+  "Plise sineklik fiyatı sorulursa WhatsApp’a yönlendir.",
   "Kargo süresi sorulursa yalnızca 'Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir.' de.",
   "Madde işareti, başlık, uzun açıklama ve teknik döküm kullanma.",
 ].join(" ");
@@ -117,8 +117,8 @@ function localAnswer(text: string, messages: Message[]): Message | null {
   const latestMeasurement = findLatestMeasurement(messages, text);
 
   if (asksShipping) return { role: "assistant", content: "Siparişiniz 7 iş günü içerisinde hazırlanarak kargoya teslim edilir." };
-  if (isInsectScreen && asksPrice) return { role: "assistant", content: "Sineklik fiyatı için WhatsApp’tan bilgi alabilirsiniz.", showWhatsApp: true };
-  if (asksInsectScreenFabric) return { role: "assistant", content: "Akordiyon sineklikte standart fiber sineklik tülü kullanılır." };
+  if (isInsectScreen && asksPrice) return { role: "assistant", content: "Plise sineklik fiyatı için WhatsApp’tan bilgi alabilirsiniz.", showWhatsApp: true };
+  if (asksInsectScreenFabric) return { role: "assistant", content: "Plise sineklikte standart fiber sineklik tülü kullanılır." };
 
   if ((currentMeasurement || asksPrice) && latestMeasurement) {
     const price = calculateNovaPrice(latestMeasurement);

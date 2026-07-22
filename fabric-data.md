@@ -13,7 +13,7 @@
 Beyaz, Krem, Gümüş Gri, Antrasit, Kahve, Bronz
 
 ## Kasa Kuralları
-- Tek cama: Kalın kasa
+- Tek cama: Standart kasa
 - Çift cama: Slim kasa
 - Slim kasa farkı: m² başına +60 ₺
 
